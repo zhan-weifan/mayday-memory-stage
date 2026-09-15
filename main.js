@@ -78,7 +78,7 @@ function setCamera(){
   const v=new THREE.Vector3(x,y,z).sub(target);
   cameraDistance=Math.max(cameraDistance,v.dot(back)+Math.max(Math.abs(v.dot(right))/tanX,Math.abs(v.dot(up))/tanY)/.84);
  }
- camera.position.copy(target).addScaledVector(back,cameraDistance);camera.lookAt(target);camera.zoom=zoom*(!filming&&camera.aspect<.8?.58:1);camera.updateProjectionMatrix();
+ camera.position.copy(target).addScaledVector(back,cameraDistance);camera.lookAt(target);camera.zoom=zoom;camera.updateProjectionMatrix();
  if(!filming){
   const pan=(.5-verticalPosition)*(bounds.max.y-bounds.min.y)*1.2;
   camera.position.addScaledVector(up,pan);
