@@ -142,5 +142,5 @@ summary{font-size:12px}
 .scene-scroll::-webkit-scrollbar-button{display:none}
 .scene-scroll:focus-visible{outline:1px solid #68756c;outline-offset:-2px}
 #stage{right:22px}
-@media(max-width:760px){.scene-scroll{top:180px;bottom:var(--generation-space,0px);width:26px}#stage{right:26px}}
+@media(max-width:760px){.scene-scroll{top:180px;bottom:var(--generation-space,0px);width:10px}#stage{right:10px}.scene-scroll::-webkit-scrollbar{width:4px}.scene-scroll::-webkit-scrollbar-thumb{border-width:1px}}
 @media(max-height:500px) and (min-width:761px){.scene-scroll{top:96px}}

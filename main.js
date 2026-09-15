@@ -80,7 +80,7 @@ function setCamera(){
  }
  camera.position.copy(target).addScaledVector(back,cameraDistance);camera.lookAt(target);camera.zoom=zoom;camera.updateProjectionMatrix();
  if(!filming){
-  const pan=(.5-verticalPosition)*(bounds.max.y-bounds.min.y)*1.2;
+  const pan=(verticalPosition-.5)*(bounds.max.y-bounds.min.y)*1.2;
   camera.position.addScaledVector(up,pan);
   camera.updateMatrixWorld();
  }
@@ -170,10 +170,10 @@ ao._overrideVisibility=()=>{originalOverride();scene.traverse(o=>{if(o.visible&&
 composer.addPass(ao);}
 composer.addPass(new OutputPass());
 stage.dataset.lighting="realtime";
-function resize(){if(filming||inferencePaused)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=mobile?Math.min(devicePixelRatio,computing?1.75:2.75,Math.sqrt(2800000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
+function resize(){if(filming||inferencePaused)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=mobile?Math.min(devicePixelRatio,computing?1.15:1.5,Math.sqrt(1500000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
 new ResizeObserver(resize).observe(stage);window.addEventListener('resize',resize);resize();
 function renderScene(){if(autoOrbit&&!filming&&!dragging&&!cameraMove&&!ceremony.active){azimuth+=.0015;setCamera();}deskField.update(time,ceremony.phase);updateTide();camera.updateMatrixWorld();glassMaterial.uniforms.viewProjection.value.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);if(memoryMesh)memoryMesh.update(camera,displaySize);renderer.setRenderTarget(innerRT);renderer.clear(true,true,true);renderer.render(inside,camera);blur();renderer.setRenderTarget(null);composer.render();}
-let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}if(mobile&&now-last<(computing?1000/12:1000/30))return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused)time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
+let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}if(mobile&&now-last<(computing?1000/10:1000/24))return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused)time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
 requestAnimationFrame(animate);
 const pointers=new Map();let gestureDistance=0;
 function span(){const p=[...pointers.values()];return p.length===2?Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y):0;}
