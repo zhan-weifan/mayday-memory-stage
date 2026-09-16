@@ -38,7 +38,7 @@ verticalScroll.addEventListener('scroll',()=>{
 },{passive:true});
 const mobile=matchMedia('(pointer:coarse), (max-width:760px)').matches;let computing=false;let inferencePaused=false;let frozenPreview=null;
 let quality=mobile?'smooth':'high';try{const saved=localStorage.getItem('palinode-quality');if(['battery','smooth','high'].includes(saved))quality=saved;}catch{}
-let interactionUntil=0;for(const type of ['pointerdown','pointermove','wheel','input','click'])document.addEventListener(type,()=>{interactionUntil=performance.now()+1200;},{passive:true});
+let interactionUntil=0,lastInteractionAt=performance.now();for(const type of ['pointerdown','pointermove','wheel','input','click'])document.addEventListener(type,()=>{lastInteractionAt=performance.now();interactionUntil=lastInteractionAt+1200;},{passive:true});
 stage.style.touchAction='none';
 const renderer=new THREE.WebGLRenderer({antialias:!mobile,preserveDrawingBuffer:true,powerPreference:mobile?'low-power':'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -177,7 +177,7 @@ new ResizeObserver(resize).observe(stage);window.addEventListener('resize',resiz
 function renderScene(){if(autoOrbit&&!filming&&!dragging&&!cameraMove&&!ceremony.active){azimuth+=.0015;setCamera();}deskField.update(time,ceremony.phase);updateTide();camera.updateMatrixWorld();glassMaterial.uniforms.viewProjection.value.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);if(memoryMesh)memoryMesh.update(camera,displaySize);renderer.setRenderTarget(innerRT);renderer.clear(true,true,true);renderer.render(inside,camera);blur();renderer.setRenderTarget(null);composer.render();}
 function applyQuality(){renderer.shadowMap.enabled=quality!=='battery';if(ao)ao.enabled=quality==='high';$('render-quality').value=quality;$('motion').disabled=quality==='battery';$('motion').textContent=quality==='battery'?'省电模式 · 流光已暂停':paused?'继续流光':'暂停流光';interactionUntil=performance.now()+1200;resize();}
 $('render-quality').onchange=()=>{quality=$('render-quality').value;try{localStorage.setItem('palinode-quality',quality);}catch{}applyQuality();};applyQuality();
-let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}const active=dragging||cameraMove||ceremony.active||autoOrbit||now<interactionUntil;const fps=computing?10:quality==='battery'?(active?24:2):quality==='smooth'?24:60;if(now-last<1000/fps)return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused&&quality!=='battery')time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
+let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}const idleMs=now-lastInteractionAt,active=dragging||cameraMove||ceremony.active||autoOrbit||now<interactionUntil;let fps;if(computing)fps=10;else if(!mobile)fps=quality==='battery'?(active?24:2):quality==='smooth'?24:60;else if(quality==='battery')fps=active?24:2;else fps=active?30:idleMs>5000?6:12;if(now-last<1000/fps)return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused&&quality!=='battery')time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
 requestAnimationFrame(animate);
 const pointers=new Map();let gestureDistance=0;
 function span(){const p=[...pointers.values()];return p.length===2?Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y):0;}
@@ -259,3 +259,4 @@ export const memoryBox={
  capture(){return renderer.domElement.toDataURL('image/png');}
 };
 window.__prismatic={renderer,scene,camera,composer,ready:true};
+

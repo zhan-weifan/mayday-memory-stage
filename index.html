@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101413"><title>回响 · 五月天记忆舞台</title><meta name="description" content="选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。先看示例，无需下载 AI 模型。"><meta property="og:title" content="回响 · 五月天记忆舞台"><meta property="og:description" content="把那一天，留在这一站。用照片制作你的 3D 纪念舞台。"><meta property="og:type" content="website"><meta property="og:url" content="https://zhan-weifan.github.io/mayday-memory-stage/"><meta property="og:image" content="https://zhan-weifan.github.io/mayday-memory-stage/demo.png"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=usability-20260916"><link rel="stylesheet" href="observatory.css?v=usability-20260916"></head>
-<body>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101413"><title>回响 · 五月天记忆舞台</title><meta name="description" content="选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。先看示例，无需下载 AI 模型。"><meta property="og:title" content="回响 · 五月天记忆舞台"><meta property="og:description" content="把那一天，留在这一站。用照片制作你的 3D 纪念舞台。"><meta property="og:type" content="website"><meta property="og:url" content="https://zhan-weifan.github.io/mayday-memory-stage/"><meta property="og:image" content="https://zhan-weifan.github.io/mayday-memory-stage/demo.png"><link rel="canonical" href="https://zhan-weifan.github.io/mayday-memory-stage/"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="回响 · 五月天记忆舞台"><meta name="twitter:description" content="把那一天，留在这一站。用照片制作你的 3D 纪念舞台。"><meta name="twitter:image" content="https://zhan-weifan.github.io/mayday-memory-stage/demo.png"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=usability-20260916"><link rel="stylesheet" href="observatory.css?v=usability-20260916"></head>
+<body class="welcome-mode">
   <header class="topbar">
     <a class="wordmark" href="./" aria-label="回响首页"><span class="brand-symbol">◎</span> 回响<span class="brand-en">PALINODE</span></a>
     <span class="site-description">五月天记忆舞台</span>
@@ -39,14 +39,15 @@
       </div></details></aside>
       <p id="connection">正在连接本机记忆库…</p><p class="format-note">JPG / PNG / WebP · 最大 25 MB</p>
       <p id="notice" role="alert" hidden></p>
-      <footer class="archive-credit"><span class="status-dot"></span> LOCAL FIRST <a href="./ABOUT.md" target="_blank">来源与许可</a></footer>
+      <footer class="archive-credit"><span class="status-dot"></span> LOCAL FIRST <a href="./about.html">来源、隐私与许可</a></footer>
     </section>
     <section class="object-view" aria-label="记忆展示">
       <div class="object-caption"><span><i class="status-dot"></i> OPTICAL ARCHIVE</span><span id="scene-state">待存入 / STANDBY</span></div>
       <div class="scene-heading"><span>MAYDAY / 私人纪念</span><h2>五个人。我们的现场。</h2><p>ONE DAY · FIVE COLORS · YOUR MEMORY</p></div>
-      <div class="first-visit"><p>选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。</p><div><button id="welcome-example" class="primary">先看示例</button><button id="welcome-create">制作我的记忆</button></div><small>看示例无需下载 AI 模型</small></div><p id="view-hint">单指左右旋转、上下浏览 · 双指缩放</p><main id="stage" aria-label="可旋转和缩放的三维记忆观测舱"></main>
+      <div class="first-visit"><p>选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。</p><div><button id="welcome-example" class="primary">先看示例</button><button id="welcome-create">制作我的记忆</button></div><small>看示例无需下载 AI 模型</small><small>照片不会上传 · AI 在你的设备上运行</small></div><p id="view-hint">单指左右旋转、上下浏览 · 双指缩放</p><main id="stage" aria-label="可旋转和缩放的三维记忆观测舱"></main>
     </section>
   </div>
   <div class="mobile-backdrop" id="close-sidebar" hidden></div>
-  <script type="module" src="browser-inference/ui.js?v=usability-20260916-2"></script>
-<script type="module" src="film.js?v=mobile-memory-1"></script><script type="module" src="observatory-ui.js?v=usability-20260916"></script></body></html>
+  <script type="module" src="bootstrap.js?v=performance-20260916-1"></script>
+</body></html>
+
