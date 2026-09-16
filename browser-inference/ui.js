@@ -1,5 +1,6 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
+import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
 import {memoryBox} from '../main.js?v=usability-20260916';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket} from './library.js?v=usability-20260916';
@@ -9,6 +10,33 @@ const workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=deco
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
+let desktopConfig=null,desktopModelBytes=0,desktopPersisted=null,desktopStorageReady=false;
+const formatDesktopBytes=bytes=>bytes>=1e9?`${(bytes/1e9).toFixed(2)} GB`:`${Math.ceil(bytes/1e6)} MB`;
+const desktopModelSize=()=>desktopModelBytes?formatDesktopBytes(desktopModelBytes):'1.31 GB';
+async function loadDesktopConfig(){
+ if(desktopConfig)return desktopConfig;
+ const response=await fetch(new URL('./model.json',import.meta.url),{cache:'no-store'});
+ if(!response.ok)throw Error('模型配置加载失败，无法检查本机存储。');
+ const config=await response.json();
+ desktopModelBytes=Number(config.graphBytes)+Number(config.weightsBytes);
+ if(!config.revision||!Number.isFinite(desktopModelBytes)||desktopModelBytes<=0)throw Error('模型配置缺少可验证的文件大小。');
+ desktopConfig=config;return config;
+}
+function showDesktopStorage(cache=null,error=null){
+ const node=$('storage-status');if(!node)return;node.hidden=false;
+ const location='模型位置：当前浏览器的网站数据，不会进入 Windows“下载”文件夹。';
+ if(error){node.dataset.risk='warning';node.textContent=`${location} 保存状态：无法可靠保存。${error.message}`;return;}
+ const estimate=cache?.storage,estimateText=estimate?`估算可用空间约 ${formatDesktopBytes(estimate.available)} · 当前站点已使用约 ${formatDesktopBytes(estimate.usage)}`:'浏览器可用空间估算暂不可用';
+ const persisted=desktopPersisted??estimate?.persisted;
+ const persistenceText=persisted===true?'保存状态：已持久保存。浏览器已允许更持久地保留本站模型数据。':'保存状态：可以保存但浏览器可能清理。模型会保存在浏览器网站数据中，但空间不足时仍可能被清理。';
+ const cacheText=cache?.ready?'✓ 已找到本机完整模型，无需重新下载。':`完整模型约 ${desktopModelSize()}，首次保存成功后，下次使用同一浏览器打开同一网址时会优先直接使用。`;
+ node.dataset.risk='ok';node.textContent=`${location} ${estimateText} · ${persistenceText} ${cacheText}`;
+}
+async function prepareDesktopStorage(){
+ $('storage-status').hidden=false;$('storage-status').textContent='正在检查浏览器存储空间与本机模型缓存…';
+ const config=await loadDesktopConfig();desktopPersisted=await requestDesktopPersistence();
+ const cache=await inspectDesktopCache(config);desktopStorageReady=true;showDesktopStorage(cache);return cache;
+}
 const mobileModelBytes=FILES.reduce((sum,file)=>sum+file.size,0);
 const formatBytes=bytes=>bytes>=1024**3?`${(bytes/1024**3).toFixed(2)} GB`:`${Math.round(bytes/1000000)} MB`;
 const mobileModelSize=formatBytes(mobileModelBytes);
@@ -35,7 +63,7 @@ async function storagePersistence(request=false){
 }
 async function updateStorageStatus(persisted=null){
  const node=$('storage-status');
- if(!node)return;
+ if(!node||!mobile)return;
  const estimate=await storageEstimate(),available=estimate?.available;
  const risk=Number.isFinite(available)&&available<mobileModelBytes;
  const estimateText=estimate?`浏览器可用存储额度估算约 ${formatBytes(available)} · 当前站点已使用约 ${formatBytes(estimate.usage)}`:'浏览器可用存储额度估算暂不可用';
@@ -57,9 +85,10 @@ async function show(record,reveal=false){
  status('正在打开这段记忆…');try{await memoryBox.load(model,record.settings,reveal);if(token!==epoch)return;status(storageStatus(record));renderLibrary();}catch(e){if(token===epoch){notice(e.message);sidebar(true);}throw e;}
 }
 const dialog=document.createElement('dialog');dialog.className='local-generation';dialog.innerHTML=`<form method="dialog"><button class="dialog-close" aria-label="关闭制作说明">×</button></form><p class="eyebrow">MADE ON YOUR DEVICE</p><h2>在这里，留住一刻。</h2><p id="model-description">照片与生成过程留在你的设备。首次需下载约 1.31 GB 模型，优先镜像线路，失败自动切换；之后优先使用本机缓存。</p><aside id="mobile-generation-advice" hidden style="margin:18px 0;padding:14px 16px;background:#edf0e8;border-radius:10px;font-size:13px;line-height:1.7"><strong>制作前的小提醒</strong><br>手机建议使用 Google Chrome 浏览器。<br>想获得更好的效果，优先使用电脑版：电脑版使用完整模型，画面细节更丰富；手机版使用轻量模型。</aside><p id="gpu-status" role="status">正在检测设备…</p><button id="local-select" class="primary" disabled>选择照片并制作</button><button id="local-example" disabled>用示例风景试一试 ↗</button><small id="generation-explanation">请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。<br>本机保存可能被浏览器清理，重要记忆请导出备份。</small><p id="storage-status" role="status" aria-live="polite" hidden style="font-size:13px;line-height:1.7;margin:12px 0">正在读取浏览器可用存储额度估算…</p><details><summary>模型与缓存</summary><p>SHARP 的浏览器格式转换版本，用于非商业研究实验。<a href="./browser-inference/licenses/APPLE-SHARP.txt" target="_blank" rel="noopener">模型许可</a> · <a href="./browser-inference/licenses/NOTICE.txt" target="_blank" rel="noopener">来源与修改说明</a></p><button id="clear-model">清除本机模型缓存</button></details>`;document.body.append(dialog);
+if(!mobile){$('model-description').textContent='完整模型约 1.31 GB，将保存在当前浏览器的网站数据中，不会进入 Windows“下载”文件夹。保存成功后，下次使用同一浏览器打开同一网址时会优先直接使用。';$('generation-explanation').textContent='请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。模型保存在当前浏览器的网站数据中，浏览器仍可能清理它；重要记忆请导出备份。';}
 const modelInput=document.createElement('input');modelInput.type='file';modelInput.accept='.gemosmodel';modelInput.hidden=true;dialog.append(modelInput);
 const modelSection=document.createElement('section');modelSection.hidden=!mobile;modelSection.style.cssText='margin:20px 0;padding:16px;background:#f2f3ef;border-radius:12px;line-height:1.7';modelSection.innerHTML=`<button id="import-lite-model" type="button" style="width:100%;min-height:44px;border:1px solid #b9bdb1;border-radius:8px;font-size:14px">导入轻量模型包</button><p style="font-size:13px;margin:8px 0">可选：如果你已有 APK 的模型包，可以导入以节省下载。下载源通过检查后才能自动下载；也可直接导入模型包。</p><a style="font-size:13px;color:inherit;text-underline-offset:4px" href="https://github.com/duoduoaiduoduo/gemos-still/releases/download/android-v0.4.0-lite/Gemos-Still-Lite-256.gemosmodel" target="_blank" rel="noopener">下载轻量模型包（${mobileModelSize}） ↗</a><progress id="model-import-progress" max="1" hidden style="width:100%"></progress>`;dialog.querySelector('details').append(modelSection);void updateStorageStatus();
-function readyControls(){ $('local-select').disabled=$('local-example').disabled=!!modelImport||!deviceReady||(mobile&&!mobileReady&&!sourceReady); }
+function readyControls(){const blocked=!!modelImport||!deviceReady;$('local-select').disabled=blocked||(mobile&&!mobileReady&&!sourceReady)||(!mobile&&!desktopStorageReady);$('local-example').disabled=blocked||(mobile&&!mobileReady&&!sourceReady);}
 const sourceSection=document.createElement('section');
 sourceSection.innerHTML=`<label for="model-source-url">轻量模型下载目录</label><input id="model-source-url" type="url" spellcheck="false"><div class="source-actions"><button id="save-model-source" type="button">保存下载源</button><button id="check-model-source" type="button">检查连接</button></div><p id="source-status" role="status">自部署需配置模型文件，或导入已下载的模型包。</p>`;
 modelSection.append(sourceSection);$('model-source-url').value=modelBase;
@@ -75,8 +104,14 @@ async function probeWorker(){
  let probe,timer;
  try{await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('这个浏览器的后台计算未响应。请用最新版 Chrome 打开同一网址再试；已有记忆仍可查看。')),15000);probe=new Worker(workerURL,{type:'module'});probe.onmessage=({data})=>{if(data.type==='probe-ready'){if(mobile)mobileReady=!!data.cached||!!mobileModelFile;resolve();}else if(data.type==='error')reject(Error(data.text+'。请用最新版 Chrome 打开同一网址再试。'));};probe.onerror=()=>reject(Error('浏览器无法启动后台计算组件，请用最新版 Chrome 打开同一网址再试。'));probe.postMessage({type:'probe'});});}finally{clearTimeout(timer);probe?.terminate();}
 }
-async function setup(){if(!dialog.open)dialog.showModal();void updateStorageStatus();deviceReady=false;if(mobile){$('mobile-generation-advice').hidden=false;$('local-select').textContent='选择照片 · 轻量制作';$('gpu-status').textContent='正在检查本机模型…';$('local-select').disabled=$('local-example').disabled=true;try{await probeWorker();deviceReady=true;if(!modelImport){if(mobileReady){$('gpu-status').textContent='轻量模型已就绪 · 使用本机 CPU';readyControls();void requestPersistentStorage();}else await verifySource();}}catch(e){$('gpu-status').textContent=e.message;}return;}
-$('local-select').disabled=$('local-example').disabled=true;try{const a=await Promise.race([navigator.gpu?.requestAdapter({powerPreference:'high-performance'}),new Promise((_,reject)=>setTimeout(()=>reject(Error('GPU 检测超时，请更新浏览器后重试。')),15000))]);if(!a?.features.has('shader-f16'))throw Error('当前设备不支持所需的 WebGPU 半精度计算。请更新支持 WebGPU 的浏览器；你仍可查看示例、打开记忆文件。');$('gpu-status').textContent='正在检测浏览器后台计算…';await probeWorker();deviceReady=true;$('gpu-status').textContent='设备支持 · 使用你自己的 GPU';$('local-select').disabled=$('local-example').disabled=false;}catch(e){$('gpu-status').textContent=e.message;}}
+async function setup(){
+ if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();
+ if(mobile){void updateStorageStatus();$('mobile-generation-advice').hidden=false;$('local-select').textContent='选择照片 · 轻量制作';$('gpu-status').textContent='正在检查本机模型…';$('local-select').disabled=$('local-example').disabled=true;try{await probeWorker();deviceReady=true;if(!modelImport){if(mobileReady){$('gpu-status').textContent='轻量模型已就绪 · 使用本机 CPU';readyControls();void requestPersistentStorage();}else await verifySource();}}catch(e){$('gpu-status').textContent=e.message;}return;}
+ $('local-select').disabled=$('local-example').disabled=true;
+ try{const cache=await prepareDesktopStorage();$('gpu-status').textContent=cache.ready?'✓ 已找到本机完整模型，无需重新下载。':'存储检查通过 · 首次需下载约 '+desktopModelSize()+' 完整模型';}
+ catch(e){showDesktopStorage(null,e);$('gpu-status').textContent=e.message;}
+ try{const a=await Promise.race([navigator.gpu?.requestAdapter({powerPreference:'high-performance'}),new Promise((_,reject)=>setTimeout(()=>reject(Error('GPU 检测超时，请更新浏览器后重试。')),15000))]);if(!a?.features.has('shader-f16'))throw Error('当前设备不支持所需的 WebGPU 半精度计算。请更新支持 WebGPU 的浏览器；你仍可查看示例、打开记忆文件。');$('gpu-status').textContent='正在检测浏览器后台计算…';await probeWorker();deviceReady=true;$('gpu-status').textContent='设备支持 · 使用你自己的 GPU';readyControls();}catch(e){$('gpu-status').textContent=e.message;readyControls();}
+}
 // Modal dialogs make controls outside them inert, including the header file input.
 dialog.append($('photo-input'));
 $('local-select').type='button';
@@ -87,7 +122,7 @@ $('local-select').onclick=()=>{
  }catch(e){$('gpu-status').textContent='未能打开照片选择窗口：'+e.message;}
 };
 $('local-example').onclick=async()=>{try{const meta=await(await fetch('./memory.json')).json();const response=await fetch(meta.photo_url);if(!response.ok)throw Error('示例照片未能加载');const blob=await response.blob();dialog.close();await create(new File([blob],`${meta.name}.png`,{type:blob.type}));}catch(e){notice(e.message);sidebar(true);}};
-$('clear-model').onclick=async()=>{if(modelImport||busy)return;try{const root=await navigator.storage.getDirectory();for await(const name of root.keys())if(name.startsWith('still-sharp-'))await root.removeEntry(name,{recursive:true});$('gpu-status').textContent='模型缓存已清除';void updateStorageStatus();if(mobile){mobileReady=false;mobileModelFile=null;sourceReady=false;await verifySource();}}catch{$('gpu-status').textContent='当前浏览器无法清除缓存';}};
+$('clear-model').onclick=async()=>{if(modelImport||busy)return;try{const root=await navigator.storage.getDirectory();for await(const name of root.keys())if(name.startsWith('still-sharp-'))await root.removeEntry(name,{recursive:true});$('gpu-status').textContent='模型缓存与 ready 标记已清除';if(!mobile){desktopStorageReady=false;$('storage-status').hidden=false;$('storage-status').textContent='模型位置：当前浏览器的网站数据。保存状态：未安装；下次制作前会重新检查并保存完整模型。';readyControls();}void updateStorageStatus();if(mobile){mobileReady=false;mobileModelFile=null;sourceReady=false;await verifySource();}}catch{$('gpu-status').textContent='当前浏览器无法清除缓存';}};
 async function create(file){
  if(busy||modelImport)return;if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)){notice('请选择 JPG、PNG 或 WebP 照片');return;}if(file.size>25*1024*1024){notice('照片不能超过 25 MB');return;}
  dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
