@@ -10,7 +10,42 @@ export function normalizeModelBase(value) {
   return url.href;
 }
 
+const CHECK_TIMEOUT=10000;
+const sourceError=file=>Error('模型下载暂不可用：'+file.name+'。请查看示例，或在「模型与缓存」中导入模型包。');
+
+async function checkHead(url,file){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),CHECK_TIMEOUT);
+ try{
+  const response=await fetch(url,{method:'HEAD',signal:controller.signal,cache:'no-store'});
+  const length=Number(response.headers.get('Content-Length')),encoded=!!response.headers.get('Content-Encoding');
+  return response.ok&&Number.isFinite(length)&&length>0&&(encoded||length===file.size);
+ }catch{return false;}
+ finally{clearTimeout(timer);controller.abort();}
+}
+
+async function checkRange(url,file){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),CHECK_TIMEOUT);
+ try{
+  const response=await fetch(url,{method:'GET',headers:{Range:'bytes=0-0'},signal:controller.signal,cache:'no-store'});
+  if(response.status!==206){await response.body?.cancel?.();return false;}
+  const match=/^bytes\s+0-0\/(\d+)$/.exec(response.headers.get('Content-Range')?.trim()||'');
+  const total=match?Number(match[1]):NaN;
+  await response.body?.cancel?.();
+  return Number.isSafeInteger(total)&&total===file.size;
+ }catch{return false;}
+ finally{clearTimeout(timer);controller.abort();}
+}
+
+export async function checkFile(base,file){
+ const url=normalizeModelBase(base)+file.name;
+ if(await checkHead(url,file))return true;
+ if(await checkRange(url,file))return true;
+ throw sourceError(file);
+}
+
 export async function checkModelSource(base,files){
- for(const file of files){const response=await fetch(normalizeModelBase(base)+file.name,{method:'HEAD',signal:AbortSignal.timeout(10000),cache:'no-store'});const length=Number(response.headers.get('Content-Length')),encoded=!!response.headers.get('Content-Encoding');if(!response.ok||!Number.isFinite(length)||length<=0||(!encoded&&length!==file.size))throw Error('模型下载暂不可用：'+file.name+'。请查看示例，或在「模型与缓存」中导入模型包。');}
+ const normalized=normalizeModelBase(base);
+ for(const file of files)await checkFile(normalized,file);
  return true;
 }
+
