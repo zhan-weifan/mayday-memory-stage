@@ -1,5 +1,5 @@
 import {CACHE,FILES,cached} from './mobile-model.js';
-import {normalizeModelBase} from './model-source.js?v=usability-20260916';
+import {normalizeModelBase} from './model-source.js?v=usability-20260916-2';
 const total=FILES.reduce((sum,f)=>sum+f.size,0);
 async function verified(blob,spec){
  if(blob.size!==spec.size)return false;await import('./ort-cpu/sha256.js');const hash=await globalThis.hashwasm.createSHA256();hash.init();
