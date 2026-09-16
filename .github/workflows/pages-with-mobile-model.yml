@@ -1,0 +1,77 @@
+name: Deploy memory stage with mobile model
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out site
+        uses: actions/checkout@v4
+
+      - name: Fetch and verify mobile model
+        env:
+          MODEL_BASE: https://gemosdodo.art/models/gemos-still-lite-v1
+        run: |
+          set -euo pipefail
+          model_dir="models/gemos-still-lite-v1"
+          mkdir -p "$model_dir"
+
+          download_and_verify() {
+            local name="$1"
+            local expected_size="$2"
+            local expected_sha="$3"
+            local target="$model_dir/$name"
+            echo "Downloading $name ($expected_size bytes)"
+            curl --fail --location --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 \
+              --output "$target" "$MODEL_BASE/$name"
+            actual_size="$(stat -c '%s' "$target")"
+            test "$actual_size" = "$expected_size"
+            actual_sha="$(sha256sum "$target" | cut -d' ' -f1)"
+            test "$actual_sha" = "$expected_sha"
+            echo "Verified $name"
+          }
+
+          download_and_verify \
+            lite256int8.onnx \
+            9033925 \
+            b4c7384ceed5587ff9b9813e44bae167c2a2081bd00e1ae7a9f1487618b821ac
+          download_and_verify \
+            lite256int8.onnx.data \
+            799551232 \
+            42fe29c22b0cb190cda01924277d7df2ea4c80f473839d71821a53e91704998a
+
+      - name: Verify release manifest
+        run: |
+          set -euo pipefail
+          test "$(stat -c '%s' models/gemos-still-lite-v1/lite256int8.onnx)" = 9033925
+          test "$(stat -c '%s' models/gemos-still-lite-v1/lite256int8.onnx.data)" = 799551232
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 1800000

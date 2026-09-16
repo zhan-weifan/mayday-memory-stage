@@ -17,13 +17,12 @@ NFC 标签写入发布后的 HTTPS 网页网址即可。
 
 ## 手机模型部署
 
-仓库不附带约 809 MB 的 AI 权重。默认请求本站 `models/gemos-still-lite-v1/`。
-从上游官方发布的 Gemos-Still-Lite-256.gemosmodel 包提取以下两文件，放入该目录：
+约 809 MB 的 AI 权重不进入 Git 历史。GitHub Pages 发布工作流会在部署时从已授权的模型目录下载并校验以下两文件，再将它们放入 Pages 产物的 `models/gemos-still-lite-v1/`：
 
 - lite256int8.onnx
 - lite256int8.onnx.data
 
-也可在新建记忆的「模型与缓存」内导入模型包，或保存自己的 HTTPS 模型目录。
+因此线上手机端可以从本站自动下载；也可在新建记忆的「模型与缓存」内导入模型包，或保存自己的 HTTPS 模型目录。
 模型服务器需要正确的 Content-Length、Range / Content-Range；跨域源还需允许 CORS，并暴露长度及范围响应头。
 代码保留上游的 SHA-256 校验。桌面模型保持上游下载及缓存逻辑。
 手机推理是实验功能，内存和设备兼容性需要真实设备验证。
