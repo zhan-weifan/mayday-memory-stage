@@ -19,6 +19,6 @@ self.onmessage=async({data})=>{
  feeds={image:new ort.Tensor('float32',a,[1,3,256,256]),disparity_factor:new ort.Tensor('float32',new Float32Array([focal/prepared.width]),[1])};
  status('正在用手机 CPU 构筑空间，可能需要数分钟','inference');outputs=await session.run(feeds);
  Object.values(feeds).forEach(t=>t.dispose());feeds=null;await session.release();session=null;
- status('正在整理空间与粒子','packing');const buffer=prepare(outputs,prepared.width,prepared.height,focal,32768,128);postMessage({type:'complete',buffer},[buffer]);
+ status('正在整理空间与粒子','packing');const buffer=prepare(outputs,prepared.width,prepared.height,focal,32768,128);Object.values(outputs).forEach(t=>t.dispose());outputs=null;postMessage({type:'complete',buffer},[buffer]);
  }catch(e){postMessage({type:'error',text:String(e.message||e)});}finally{Object.values(feeds||{}).forEach(t=>t.dispose());Object.values(outputs||{}).forEach(t=>t.dispose());await session?.release();busy=false;}
 };

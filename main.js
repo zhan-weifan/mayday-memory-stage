@@ -252,9 +252,13 @@ export const memoryBox={
  setComputing(value){computing=!!value;resize();},
  async beginCreation(file,name){loadVersion++;moveCamera(HOME);if(memoryMesh)memoryMesh.visible=false;demo.visible=false;try{await ceremony.begin(file,name);}catch(e){this.cancelCreation();throw e;}},
  waiting(message){if(memoryMesh)memoryMesh.visible=false;demo.visible=false;ceremony.wait(message);},
- cancelCreation(){loadVersion++;ceremony.cancel();if(memoryMesh)memoryMesh.visible=true;else demo.visible=true;},
+  cancelCreation(){loadVersion++;ceremony.cancel();if(memoryMesh)memoryMesh.visible=true;else demo.visible=true;},
+  releaseLoadedMemory(){
+   if(!memoryMesh)return false;
+   inside.remove(memoryMesh);memoryMesh.dispose();memoryMesh=null;return true;
+  },
 
- async load(url,settings,reveal=false){const version=++loadVersion;const response=await fetch(url);if(!response.ok)throw new Error('无法读取 3D 记忆，请重试。');const buffer=await response.arrayBuffer();if(version!==loadVersion)return;const next=new MemoryGaussians(buffer);if(memoryMesh){inside.remove(memoryMesh);memoryMesh.dispose();}memoryMesh=next;inside.add(next);demo.visible=false;applySettings(settings,reveal);if(reveal)ceremony.reveal(next);},
+  async load(url,settings,reveal=false){const version=++loadVersion;const response=await fetch(url);if(!response.ok)throw new Error('无法读取 3D 记忆，请重试。');const buffer=await response.arrayBuffer();if(version!==loadVersion)return;const next=new MemoryGaussians(buffer);if(memoryMesh){inside.remove(memoryMesh);memoryMesh.dispose();}memoryMesh=next;inside.add(next);demo.visible=false;applySettings(settings,reveal);if(reveal)ceremony.reveal(next);},
  getSettings(){return {designVersion:2,renderVersion:2,stageVersion:3,fit:fill,contentScale,depthVolume,glow:glassMaterial.uniforms.glow.value,frost:glassMaterial.uniforms.frost.value,brightness:Number($('brightness').value),azimuth,elevation,zoom};},
  capture(){return renderer.domElement.toDataURL('image/png');}
 };

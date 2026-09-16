@@ -4,7 +4,7 @@ import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=des
 import {memoryBox} from '../main.js?v=usability-20260916';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket} from './library.js?v=usability-20260916';
-const $=id=>document.getElementById(id);let records=[],current=null,worker=null,busy=false,epoch=0,urls=[],operation=null,cancelJob=null;
+const $=id=>document.getElementById(id);let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
 const mobile=navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
@@ -74,7 +74,7 @@ async function updateStorageStatus(persisted=null){
 function requestPersistentStorage(){return storagePersistence(true).then(updateStorageStatus);}
 function sidebar(open){document.body.classList.toggle('sidebar-open',open);$('toggle-sidebar').textContent=open?'关闭':'调整';$('toggle-sidebar').setAttribute('aria-expanded',String(open));$('close-sidebar').hidden=!open;}
 function lock(on){busy=on;$('library').disabled=on;$('replay-creation').disabled=on;$('choose-photo').textContent=on?'取消制作':'＋ 新建记忆';$('import-memory').disabled=on;$('view-example').disabled=on;for(const id of ['welcome-example','welcome-create','ticket-city','ticket-venue','ticket-date','save-settings','download-memory','rename-memory','delete-memory']){const el=$(id);if(el)el.disabled=on;}document.querySelectorAll('.memory-card').forEach(b=>b.disabled=on);}
-function stop(){draft(null).catch(()=>{});memoryBox.setInferencePaused(false);progressPanel.hidden=true;retryPhoto=null;memoryBox.setComputing(false);epoch++;operation=null;cancelJob?.(Error('已取消'));cancelJob=null;worker?.terminate();worker=null;memoryBox.cancelCreation();lock(false);status('制作已取消 · 已有记忆保留');notice('制作已取消，已有记忆保留。');}
+function stop(){draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;epoch++;operation=null;cancelJob?.(Error('已取消'));cancelJob=null;clearTimeout(watchdog);watchdog=null;worker?.terminate();worker=null;memoryBox.setInferencePaused(false);memoryBox.setComputing(false);memoryBox.cancelCreation();lock(false);status('制作已取消 · 已有记忆保留');notice('制作已取消，已有记忆保留。');}
 function status(text){$('job-message').textContent=text;$('connection').textContent=text;}
 async function refresh(){try{records=await list();records.forEach(r=>savedIds.add(r.id));}catch{notice('浏览器存储不可用，生成后请立即导出记忆。');}const select=$('library');select.replaceChildren();const placeholder=new Option('选择一份记忆…','');select.append(placeholder);for(const r of records){const o=document.createElement('option');o.value=r.id;o.textContent=r.name;select.append(o);}$('library-section').hidden=!records.length;$('memory-count').textContent=records.length;if(current)select.value=current.id;renderLibrary();}
 async function show(record,reveal=false){
@@ -83,6 +83,25 @@ async function show(record,reveal=false){
  const photo=record.photo?URL.createObjectURL(record.photo):record.photo_url,model=record.model?URL.createObjectURL(new Blob([record.model])):record.model_url;if(record.photo)urls.push(photo);if(record.model)urls.push(model);
  $('current-memory').hidden=false;$('photo-preview').src=photo;$('memory-name').textContent=record.name;$('memory-date').textContent=new Date(record.created_at).toLocaleDateString('zh-CN');$('steps').hidden=true;$('retry').hidden=true;$('memory-actions').hidden=false;$('download-memory').hidden=!record.model;$('save-settings').textContent='保存设置到本机';$('library').value=record.id;for(const id of ['rename-memory','delete-memory'])$(id).hidden=!record.model;
  status('正在打开这段记忆…');try{await memoryBox.load(model,record.settings,reveal);if(token!==epoch)return;status(storageStatus(record));renderLibrary();}catch(e){if(token===epoch){notice(e.message);sidebar(true);}throw e;}
+}
+const nextAnimationFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+async function prepareMobileForNewCreation(){
+ if(!mobile)return null;
+ if(current?.model&&!savedIds.has(current.id)){notice('当前记忆尚未保存，请先保存设置或导出记忆后再新建。');sidebar(true);return false;}
+ previousMemoryId=current&&savedIds.has(current.id)?current.id:null;
+ urls.forEach(URL.revokeObjectURL);urls=[];$('photo-preview')?.removeAttribute('src');
+ memoryBox.releaseLoadedMemory();
+ if(worker||operation){clearTimeout(watchdog);watchdog=null;worker?.terminate();worker=null;cancelJob?.(Error('旧制作已结束'));cancelJob=null;operation=null;}
+ memoryBox.setInferencePaused(false);memoryBox.setComputing(false);
+ if(previousMemoryId===current?.id){const {id,name,created_at,ticket,exported_at}=current;current={id,name,created_at,ticket,exported_at};}
+ await nextAnimationFrame();await nextAnimationFrame();return previousMemoryId;
+}
+async function restorePreviousMemory(id){
+ if(!id)return;
+ await nextAnimationFrame();
+ try{const record=await get(id);if(record){await show(record);status('已恢复上一份记忆，可继续新建。');}else await refresh();}
+ catch{notice('上一份记忆恢复失败，请从收藏库重新打开。');await refresh().catch(()=>{});}
+ if(previousMemoryId===id)previousMemoryId=null;
 }
 const dialog=document.createElement('dialog');dialog.className='local-generation';dialog.innerHTML=`<form method="dialog"><button class="dialog-close" aria-label="关闭制作说明">×</button></form><p class="eyebrow">MADE ON YOUR DEVICE</p><h2>在这里，留住一刻。</h2><p id="model-description">照片与生成过程留在你的设备。首次需下载约 1.31 GB 模型，优先镜像线路，失败自动切换；之后优先使用本机缓存。</p><aside id="mobile-generation-advice" hidden style="margin:18px 0;padding:14px 16px;background:#edf0e8;border-radius:10px;font-size:13px;line-height:1.7"><strong>制作前的小提醒</strong><br>手机建议使用 Google Chrome 浏览器。<br>想获得更好的效果，优先使用电脑版：电脑版使用完整模型，画面细节更丰富；手机版使用轻量模型。</aside><p id="gpu-status" role="status">正在检测设备…</p><button id="local-select" class="primary" disabled>选择照片并制作</button><button id="local-example" disabled>用示例风景试一试 ↗</button><small id="generation-explanation">请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。<br>本机保存可能被浏览器清理，重要记忆请导出备份。</small><p id="storage-status" role="status" aria-live="polite" hidden style="font-size:13px;line-height:1.7;margin:12px 0">正在读取浏览器可用存储额度估算…</p><details><summary>模型与缓存</summary><p>SHARP 的浏览器格式转换版本，用于非商业研究实验。<a href="./browser-inference/licenses/APPLE-SHARP.txt" target="_blank" rel="noopener">模型许可</a> · <a href="./browser-inference/licenses/NOTICE.txt" target="_blank" rel="noopener">来源与修改说明</a></p><button id="clear-model">清除本机模型缓存</button></details>`;document.body.append(dialog);
 if(!mobile){$('model-description').textContent='完整模型约 1.31 GB，将保存在当前浏览器的网站数据中，不会进入 Windows“下载”文件夹。保存成功后，下次使用同一浏览器打开同一网址时会优先直接使用。';$('generation-explanation').textContent='请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。模型保存在当前浏览器的网站数据中，浏览器仍可能清理它；重要记忆请导出备份。';}
@@ -124,11 +143,15 @@ $('local-select').onclick=()=>{
 $('local-example').onclick=async()=>{try{const meta=await(await fetch('./memory.json')).json();const response=await fetch(meta.photo_url);if(!response.ok)throw Error('示例照片未能加载');const blob=await response.blob();dialog.close();await create(new File([blob],`${meta.name}.png`,{type:blob.type}));}catch(e){notice(e.message);sidebar(true);}};
 $('clear-model').onclick=async()=>{if(modelImport||busy)return;try{const root=await navigator.storage.getDirectory();for await(const name of root.keys())if(name.startsWith('still-sharp-'))await root.removeEntry(name,{recursive:true});$('gpu-status').textContent='模型缓存与 ready 标记已清除';if(!mobile){desktopStorageReady=false;$('storage-status').hidden=false;$('storage-status').textContent='模型位置：当前浏览器的网站数据。保存状态：未安装；下次制作前会重新检查并保存完整模型。';readyControls();}void updateStorageStatus();if(mobile){mobileReady=false;mobileModelFile=null;sourceReady=false;await verifySource();}}catch{$('gpu-status').textContent='当前浏览器无法清除缓存';}};
 async function create(file){
- if(busy||modelImport)return;if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)){notice('请选择 JPG、PNG 或 WebP 照片');return;}if(file.size>25*1024*1024){notice('照片不能超过 25 MB');return;}
+ if(busy||starting||modelImport)return;if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)){notice('请选择 JPG、PNG 或 WebP 照片');return;}if(file.size>25*1024*1024){notice('照片不能超过 25 MB');return;}
+ starting=true;
+ try{
+ if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
+ const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
  dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
  let arrived=false,lastStatus='正在准备本机模型';
  let arrival;
- let runningWorker,watchdog;
+ let runningWorker,completed=false;
  try{
  updateProgress({text:'正在保存照片草稿…'});try{await draft({photo:file,name:file.name,ticket:readTicket(),started_at:Date.now()});}catch{notice('无法保存制作草稿，页面关闭后需重新选择照片。');}if(operation!==op)return;
  const prepared=await preparePhoto(file,mobile?256:1536);if(operation!==op)return;
@@ -139,9 +162,23 @@ async function create(file){
  const [buffer]=await Promise.all([result,arrival]);runningWorker.terminate();worker=null;memoryBox.setInferencePaused(false);void requestPersistentStorage();if(token!==epoch)return;
  const record={id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,'').slice(0,60)||'一段记忆',created_at:new Date().toISOString(),photo:file,model:buffer,settings:{designVersion:2,depthVolume:1},ticket:readTicket()};
  try{await save(record);savedIds.add(record.id);void requestPersistentStorage();}catch{notice('本机存储不足，请立即导出这份记忆。');}
- await draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;await refresh();await show(record,true);
- }catch(e){if(operation===op){memoryBox.cancelCreation();updateProgress({text:'制作未完成：'+e.message});progressPanel.querySelector('strong').textContent='制作已暂停';$('generation-bar').hidden=true;$('generation-detail').textContent='照片未上传 · 请根据上方原因重试';$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';notice('制作未完成：'+e.message);status('照片没有上传，可重试或换一台设备。');sidebar(true);}}
- finally{memoryBox.setInferencePaused(false);clearTimeout(watchdog);memoryBox.setComputing(false);runningWorker?.terminate();if(operation===op){operation=null;worker=null;cancelJob=null;lock(false);}}
+ await draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;await refresh();await show(record,true);completed=true;previousMemoryId=null;
+ }catch(e){if(operation===op){updateProgress({text:'制作未完成：'+e.message});progressPanel.querySelector('strong').textContent='制作已暂停';$('generation-bar').hidden=true;$('generation-detail').textContent='照片未上传 · 请根据上方原因重试';$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';notice('制作未完成：'+e.message);status('照片没有上传，可重试或换一台设备。');sidebar(true);}}
+ finally{
+  const ownsOperation=operation===op;
+  const ownsWorker=worker===runningWorker;
+  if(ownsOperation||ownsWorker||!operation){
+   clearTimeout(watchdog);watchdog=null;
+   runningWorker?.terminate();
+   if(ownsWorker)worker=null;
+   memoryBox.setInferencePaused(false);memoryBox.setComputing(false);
+   if(!completed)memoryBox.cancelCreation();
+  }
+  if(ownsOperation||!operation){operation=null;cancelJob=null;lock(false);}
+  else if(ownsWorker)worker=null;
+ }
+ if(previousId&&!completed&&!operation){lock(true);try{await restorePreviousMemory(previousId);}finally{lock(false);}}
+ }finally{starting=false;}
 }
 $('choose-photo').onclick=()=>busy?stop():setup();$('photo-input').onchange=e=>{create(e.target.files[0]);e.target.value='';};
 const importButton=document.createElement('button');importButton.id='import-memory';importButton.textContent='打开记忆文件';importButton.className='quiet';$('creation').append(importButton);const input=document.createElement('input');input.type='file';input.accept='.still';input.hidden=true;document.body.append(input);importButton.onclick=()=>input.click();input.onchange=async()=>{try{const r=await unpack(input.files[0]);try{await save(r);savedIds.add(r.id);void requestPersistentStorage();}catch{notice('无法保存到浏览器，但仍可查看这份记忆。');}await refresh();await show(r);}catch(e){notice(e.message);sidebar(true);}input.value='';};
