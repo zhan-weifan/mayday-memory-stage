@@ -9,3 +9,8 @@ export function normalizeModelBase(value) {
   url.pathname=url.pathname.replace(/\/?$/,'/');
   return url.href;
 }
+
+export async function checkModelSource(base,files){
+ for(const file of files){const response=await fetch(normalizeModelBase(base)+file.name,{method:'HEAD',signal:AbortSignal.timeout(10000),cache:'no-store'});if(!response.ok||Number(response.headers.get('Content-Length'))!==file.size)throw Error('模型下载暂不可用：'+file.name+'。请查看示例，或在「模型与缓存」中导入模型包。');}
+ return true;
+}

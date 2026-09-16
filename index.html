@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101413"><title>回响 PALINODE · 记忆观测台</title><link rel="stylesheet" href="style.css?v=mobile-layout-1"><link rel="stylesheet" href="observatory.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101413"><title>回响 · 五月天记忆舞台</title><meta name="description" content="选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。先看示例，无需下载 AI 模型。"><meta property="og:title" content="回响 · 五月天记忆舞台"><meta property="og:description" content="把那一天，留在这一站。用照片制作你的 3D 纪念舞台。"><meta property="og:type" content="website"><meta property="og:url" content="https://zhan-weifan.github.io/mayday-memory-stage/"><meta property="og:image" content="https://zhan-weifan.github.io/mayday-memory-stage/demo.png"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=usability-20260916"><link rel="stylesheet" href="observatory.css?v=usability-20260916"></head>
 <body>
   <header class="topbar">
     <a class="wordmark" href="./" aria-label="回响首页"><span class="brand-symbol">◎</span> 回响<span class="brand-en">PALINODE</span></a>
-    <span class="site-description">五月天 · 私人记忆现场</span>
+    <span class="site-description">五月天记忆舞台</span>
     <div class="header-actions">
       <button id="toggle-sidebar" aria-expanded="false" aria-controls="memory-panel">调整</button>
       <div id="creation"><input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="choose-photo" class="primary"><span>＋</span> 新建记忆</button></div>
@@ -13,7 +13,7 @@
   <div class="workspace">
     <section id="memory-panel" aria-label="记忆收藏">
       <div class="sidebar-top"><p class="eyebrow">MAYDAY / FAN MEMORY</p><h1>我们的现场</h1><p class="intro" id="intro">把那一天，留在这一站。</p></div>
-      <section class="ticket-editor" aria-label="纪念票根"><div class="section-title">这一站的票根</div><label for="ticket-city">城市 / 场馆</label><input id="ticket-city" maxlength="16" placeholder="某座城市"><label for="ticket-date">纪念日期</label><input id="ticket-date" type="date"><div class="member-key"><span style="--member:#d8b800">玛莎</span><span style="--member:#ee5418">怪兽</span><span style="--member:#cc599a">阿信</span><span style="--member:#209fcd">冠佑</span><span style="--member:#13975f">石头</span></div></section>
+      <section class="ticket-editor" aria-label="纪念票根"><div class="section-title">这一站的票根</div><label for="ticket-city">城市</label><input id="ticket-city" maxlength="32" placeholder="某座城市"><label for="ticket-venue">场馆</label><input id="ticket-venue" maxlength="60" placeholder="演出场馆（可选）"><label for="ticket-date">纪念日期</label><input id="ticket-date" type="date"><div class="member-key"><span style="--member:#d8b800">玛莎</span><span style="--member:#ee5418">怪兽</span><span style="--member:#cc599a">阿信</span><span style="--member:#209fcd">冠佑</span><span style="--member:#13975f">石头</span></div></section>
       <div id="library-section" hidden><label for="library">我的收藏 <span id="memory-count"></span></label><select id="library" aria-label="选择已保存的记忆"></select></div>
       <div id="current-memory" hidden>
         <div class="memory-summary"><img id="photo-preview" alt="记忆原照片"><div><h2 id="memory-name"></h2><p id="memory-date"></p></div></div>
@@ -25,7 +25,7 @@
           <div class="actions"><button id="save-settings">保存设置</button><button id="snapshot">导出画面 ↗</button></div><div class="actions"><button id="replay-creation">重播收藏过程 ↗</button></div>
         </div>
       </div>
-      <section class="composition" aria-label="内容构图">
+      <label for="render-quality">观看画质</label><select id="render-quality"><option value="battery">省电</option><option value="smooth">流畅</option><option value="high">高清</option></select><small class="quality-note">省电模式暂停流光、降低分辨率与静止时重绘频率。</small><section class="composition" aria-label="内容构图">
         <div class="section-title">空间构图 <span>01</span></div>
         <div class="fit-options"><button id="fit-cover" aria-pressed="true">充满</button><button id="fit-contain" aria-pressed="false">完整</button></div>
         <label for="content-scale">内容大小 <output id="content-scaleValue">65%</output></label><input id="content-scale" type="range" min="0.65" max="1.75" step="0.01" value="0.65">
@@ -44,9 +44,9 @@
     <section class="object-view" aria-label="记忆展示">
       <div class="object-caption"><span><i class="status-dot"></i> OPTICAL ARCHIVE</span><span id="scene-state">待存入 / STANDBY</span></div>
       <div class="scene-heading"><span>MAYDAY / 私人纪念</span><h2>五个人。我们的现场。</h2><p>ONE DAY · FIVE COLORS · YOUR MEMORY</p></div>
-      <main id="stage" aria-label="可旋转和缩放的三维记忆观测舱"></main>
+      <div class="first-visit"><p>选一张演唱会照片，制作可以旋转观看的 3D 纪念舞台。</p><div><button id="welcome-example" class="primary">先看示例</button><button id="welcome-create">制作我的记忆</button></div><small>看示例无需下载 AI 模型</small></div><p id="view-hint">单指左右旋转、上下浏览 · 双指缩放</p><main id="stage" aria-label="可旋转和缩放的三维记忆观测舱"></main>
     </section>
   </div>
   <div class="mobile-backdrop" id="close-sidebar" hidden></div>
-  <script type="module" src="browser-inference/ui.js?v=mobile-advice-2"></script>
-<script type="module" src="film.js?v=mobile-memory-1"></script><script type="module" src="observatory-ui.js"></script></body></html>
+  <script type="module" src="browser-inference/ui.js?v=usability-20260916"></script>
+<script type="module" src="film.js?v=mobile-memory-1"></script><script type="module" src="observatory-ui.js?v=usability-20260916"></script></body></html>

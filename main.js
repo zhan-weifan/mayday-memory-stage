@@ -37,6 +37,8 @@ verticalScroll.addEventListener('scroll',()=>{
  setCamera();
 },{passive:true});
 const mobile=matchMedia('(pointer:coarse), (max-width:760px)').matches;let computing=false;let inferencePaused=false;let frozenPreview=null;
+let quality=mobile?'smooth':'high';try{const saved=localStorage.getItem('palinode-quality');if(['battery','smooth','high'].includes(saved))quality=saved;}catch{}
+let interactionUntil=0;for(const type of ['pointerdown','pointermove','wheel','input','click'])document.addEventListener(type,()=>{interactionUntil=performance.now()+1200;},{passive:true});
 stage.style.touchAction='none';
 const renderer=new THREE.WebGLRenderer({antialias:!mobile,preserveDrawingBuffer:true,powerPreference:mobile?'low-power':'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -159,7 +161,7 @@ const tide=makeTide(mobile),demo=tide.mesh;inside.add(demo);
 let tideSwirl=0,tideAlpha=1,filmStart=0,filmRevealed=false,filmDof=null;
 function updateTide(dt=.033){const phase=ceremony.phase,vortex=['projecting','generating','revealing'].includes(phase)?1:0;const reveal=memoryMesh?.material.uniforms.reveal.value??0;const constructing=phase==='revealing';const opacity=(!memoryMesh||['card','projecting','generating','revealing'].includes(phase))?1:0;tideSwirl=THREE.MathUtils.damp(tideSwirl,vortex,2.2,dt);tideAlpha=constructing?1:THREE.MathUtils.damp(tideAlpha,opacity,3,dt);tide.update(time,tideSwirl,tideAlpha,displaySize.y,constructing?reveal:(memoryMesh&&opacity===0?1:-1));}
 // Multisampled linear render -> ground-truth AO -> highlight-preserving display transform.
-const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:mobile?2:4}));
+const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:mobile?0:4}));
 composer.addPass(new RenderPass(scene,camera));
 const ao=mobile?null:new GTAOPass(scene,camera,1,1);
 if(ao){
@@ -170,15 +172,17 @@ ao._overrideVisibility=()=>{originalOverride();scene.traverse(o=>{if(o.visible&&
 composer.addPass(ao);}
 composer.addPass(new OutputPass());
 stage.dataset.lighting="realtime";
-function resize(){if(filming||inferencePaused)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=mobile?Math.min(devicePixelRatio,computing?1.15:1.5,Math.sqrt(1500000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
+function resize(){if(filming||inferencePaused)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=quality==='battery'?Math.min(devicePixelRatio,1,Math.sqrt(700000/(w*h))):quality==='smooth'?Math.min(devicePixelRatio,computing?1:1.5,Math.sqrt(1500000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
 new ResizeObserver(resize).observe(stage);window.addEventListener('resize',resize);resize();
 function renderScene(){if(autoOrbit&&!filming&&!dragging&&!cameraMove&&!ceremony.active){azimuth+=.0015;setCamera();}deskField.update(time,ceremony.phase);updateTide();camera.updateMatrixWorld();glassMaterial.uniforms.viewProjection.value.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);if(memoryMesh)memoryMesh.update(camera,displaySize);renderer.setRenderTarget(innerRT);renderer.clear(true,true,true);renderer.render(inside,camera);blur();renderer.setRenderTarget(null);composer.render();}
-let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}if(mobile&&now-last<(computing?1000/10:1000/24))return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused)time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
+function applyQuality(){renderer.shadowMap.enabled=quality!=='battery';if(ao)ao.enabled=quality==='high';$('render-quality').value=quality;$('motion').disabled=quality==='battery';$('motion').textContent=quality==='battery'?'省电模式 · 流光已暂停':paused?'继续流光':'暂停流光';interactionUntil=performance.now()+1200;resize();}
+$('render-quality').onchange=()=>{quality=$('render-quality').value;try{localStorage.setItem('palinode-quality',quality);}catch{}applyQuality();};applyQuality();
+let last=performance.now();function animate(now){requestAnimationFrame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}const active=dragging||cameraMove||ceremony.active||autoOrbit||now<interactionUntil;const fps=computing?10:quality==='battery'?(active?24:2):quality==='smooth'?24:60;if(now-last<1000/fps)return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused&&quality!=='battery')time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
 requestAnimationFrame(animate);
 const pointers=new Map();let gestureDistance=0;
 function span(){const p=[...pointers.values()];return p.length===2?Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y):0;}
 stage.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;cameraMove=null;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});dragging=true;gestureDistance=span();stage.setPointerCapture(e.pointerId);});
-stage.addEventListener('pointermove',e=>{const old=pointers.get(e.pointerId);if(!old)return;const dx=e.clientX-old.x,dy=e.clientY-old.y;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){azimuth-=dx*.006;elevation=Math.max(.08,Math.min(1.35,elevation+dy*.004));}else if(pointers.size===2){const d=span();if(gestureDistance>5&&d>5)zoom=Math.max(.6,Math.min(4,zoom*d/gestureDistance));gestureDistance=d;}setCamera();});
+stage.addEventListener('pointermove',e=>{const old=pointers.get(e.pointerId);if(!old)return;const dx=e.clientX-old.x,dy=e.clientY-old.y;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){azimuth-=dx*.006;if(mobile){verticalPosition=Math.max(0,Math.min(1,verticalPosition+dy/Math.max(stage.clientHeight,1)));syncScroll();}else elevation=Math.max(.08,Math.min(1.35,elevation+dy*.004));}else if(pointers.size===2){const d=span();if(gestureDistance>5&&d>5)zoom=Math.max(.6,Math.min(4,zoom*d/gestureDistance));gestureDistance=d;}setCamera();});
 for(const ev of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(ev,e=>{pointers.delete(e.pointerId);gestureDistance=span();dragging=pointers.size>0;});
 window.addEventListener('blur',()=>{pointers.clear();gestureDistance=0;dragging=false;});
 stage.addEventListener('wheel',e=>{e.preventDefault();cameraMove=null;zoom=Math.max(.6,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));setCamera();},{passive:false});

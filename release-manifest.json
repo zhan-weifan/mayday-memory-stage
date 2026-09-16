@@ -41,8 +41,8 @@
   },
   {
     "path": "browser-inference/library.js",
-    "bytes": 3100,
-    "sha256": "6f1abd4f858418df271d14a7a813c2e550041186e90ceaf95895daf9bf9bcc11"
+    "bytes": 3684,
+    "sha256": "795e494c079df78b6cb4736da2ce1d57a0646efb45b7a55fbe25e05e9ce261c9"
   },
   {
     "path": "browser-inference/licenses/APPLE-SHARP.txt",
@@ -66,8 +66,8 @@
   },
   {
     "path": "browser-inference/mobile-download.js",
-    "bytes": 3626,
-    "sha256": "fd4d0f880c84cdd5b0fe04f983a4466628b5d269aff0a5a4fadb96021433cd33"
+    "bytes": 3650,
+    "sha256": "ab7baa0beeca1c5c256b177c27142f1e04f4bdfbef705176fec5638012daff94"
   },
   {
     "path": "browser-inference/mobile-model.js",
@@ -76,13 +76,13 @@
   },
   {
     "path": "browser-inference/mobile-worker.js",
-    "bytes": 2739,
-    "sha256": "275f83562b8b46e5986c4142c2f09ed38881ad573576a9154c03b4c95e6c6072"
+    "bytes": 2740,
+    "sha256": "083fb13dc856eb028807e98a09eb5654ca996508105092d852926fdf85dd43da"
   },
   {
     "path": "browser-inference/model-source.js",
-    "bytes": 710,
-    "sha256": "e010804623f657dafc2b9f227d5f30b014bb2cbd5a29c0b05f4c68f28ab295c7"
+    "bytes": 1154,
+    "sha256": "f724255d139be475f8059bb6c3cded237d433639962131d09b337f7e162be2e1"
   },
   {
     "path": "browser-inference/model.json",
@@ -136,8 +136,8 @@
   },
   {
     "path": "browser-inference/ui.js",
-    "bytes": 21833,
-    "sha256": "a1cc631199dec50580c99bdfdccc43f057b3d0836e002e07d80406288d82d90f"
+    "bytes": 28910,
+    "sha256": "115f866d21908356231f7cff33c35e443e87eb2d5f0a67792c248c5425f23b87"
   },
   {
     "path": "browser-inference/worker.js",
@@ -146,8 +146,8 @@
   },
   {
     "path": "ceremony.js",
-    "bytes": 8809,
-    "sha256": "7d4f60acb047e9bfaf6e47e85d2b4f8c4899abd61f89b2fb3b69080681e32aad"
+    "bytes": 8893,
+    "sha256": "ca261d7ecf2935f581ecd864347b3edd1857225577bf7e3dee4d8f14cbe19759"
   },
   {
     "path": "computer.js",
@@ -170,19 +170,24 @@
     "sha256": "013c15a2ecb41b5c872719541494d7b6184f3b78344a69bc80395e9ca4ad35ba"
   },
   {
+    "path": "favicon.svg",
+    "bytes": 243,
+    "sha256": "f208dd818ea57df0e4d5ff9d683be927a066c248d54fc6b1f25dc739b50cfa24"
+  },
+  {
     "path": "film-encoder.js",
     "bytes": 1801,
     "sha256": "2651f870dcbb770c51e7040eba176e9a897e2fec59c495ab13a1de33378b5c7d"
   },
   {
     "path": "film-montage.js",
-    "bytes": 1472,
-    "sha256": "407533674d8dbbf8ba07b4e270f5aa342c430c6ddfdbea3e4c77e8feca4d1a2e"
+    "bytes": 1476,
+    "sha256": "205a88d96266ed7a56cf901d5d2b577f4cd4c3189b41ee87b48e629874aec5b4"
   },
   {
     "path": "film-outro.js",
-    "bytes": 1540,
-    "sha256": "4d125fd00188f49d381eaf5ca2a6adf6a52831a80a5fc267b73328685d9d1541"
+    "bytes": 1544,
+    "sha256": "bed1e606f17459f01cb00d6284949a017620c7294dff3ad50d82e55c4ab5e3bd"
   },
   {
     "path": "film-score.js",
@@ -196,8 +201,8 @@
   },
   {
     "path": "film.js",
-    "bytes": 6204,
-    "sha256": "d81f4194a2b50343a2491fb9c686937deed8db9bcb0dfa9e94086f44ada38f67"
+    "bytes": 6208,
+    "sha256": "0cdb4f7b7004165ee7e66ef2f7d7badae5491fc89ed0190958381697e59644e1"
   },
   {
     "path": "gaussian.js",
@@ -211,8 +216,8 @@
   },
   {
     "path": "index.html",
-    "bytes": 5305,
-    "sha256": "cd36ecb2909cdccb385917f7bc5da6c508500e6b480861e444a865e346be7be1"
+    "bytes": 6740,
+    "sha256": "36b091dadf71746d3e809918ffee0e116b9dfd67dff8c201a867b72340655a48"
   },
   {
     "path": "logo-sticker.js",
@@ -221,8 +226,8 @@
   },
   {
     "path": "main.js",
-    "bytes": 24800,
-    "sha256": "ae452f8b941619feac5187ba7082a48eddcbf03e1abbdb795f30b4a2e862270f"
+    "bytes": 26082,
+    "sha256": "a13313bcc163e6fe472a8d8f3a29b31c93996d130589c6659ffcf05ea8d68740"
   },
   {
     "path": "memory.json",
@@ -236,18 +241,18 @@
   },
   {
     "path": "observatory-ui.js",
-    "bytes": 1552,
-    "sha256": "16e9c9415ed2170e2effbc02364f057e8df1cc1efce67f3a1940847fbb486167"
+    "bytes": 1521,
+    "sha256": "fcb8ab9b0ff3a54397552018cb8f3e870a6602196db70a1ba314caabaaa74333"
   },
   {
     "path": "observatory.css",
-    "bytes": 10098,
-    "sha256": "9da27c52e4539679502af9789991ff84220d280d9fff7f88f079540ef0a013f8"
+    "bytes": 12363,
+    "sha256": "aa5e3c72f33905948890073fa28f7669ce7ca691c7742191e71b4fcc27b8ab1d"
   },
   {
     "path": "observatory.js",
-    "bytes": 14240,
-    "sha256": "f808337af2b8dff37bc4a7d99c228ad1e843e9b8049e0214c7cb4bd09eba83a4"
+    "bytes": 14474,
+    "sha256": "65532a9c810a681b10302a5c7e7d2096b88afc02a9f942d4cc6aaa18a0e95f94"
   },
   {
     "path": "rear-stickers.js",
@@ -271,8 +276,8 @@
   },
   {
     "path": "tide.js",
-    "bytes": 7482,
-    "sha256": "e3ec4cd4adfa1ce342d7ba12132085b5ead065019ea206ba03345941bf1d007f"
+    "bytes": 7486,
+    "sha256": "69f2c91c76268e69019a245dfdb92954ee9a6224db6d1b71e3152f366625f50d"
   },
   {
     "path": "vendor/LICENSE",
