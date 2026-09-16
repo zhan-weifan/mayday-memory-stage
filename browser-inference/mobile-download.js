@@ -24,7 +24,7 @@ export async function downloadModel(report,source){
  if(!response.ok||![200,206].includes(response.status))throw Error('模型下载暂不可用');
  if(response.status===200)start=0;
  else if(!start||response.headers.get('Content-Range')!==`bytes ${start}-${spec.size-1}/${spec.size}`)throw Error('模型续传响应无效');
- const length=Number(response.headers.get('Content-Length'));if(length!==spec.size-start)throw Error('模型下载大小不匹配');
+ const length=Number(response.headers.get('Content-Length')),encoded=!!response.headers.get('Content-Encoding');if(!Number.isFinite(length)||length<=0||(!encoded&&length!==spec.size-start))throw Error('模型下载大小不匹配');
  writer=await handle.createWritable({keepExistingData:start>0});await writer.seek(start);reader=response.body.getReader();let received=start,last=0;
  while(true){timer=setTimeout(()=>controller.abort(),45000);const {value,done}=await reader.read();clearTimeout(timer);if(done)break;received+=value.length;if(received>spec.size)throw Error('模型下载超出预期大小');await writer.write(value);if(Date.now()-last>150){last=Date.now();report({type:'status',phase:'download',loaded:offset+received,total,text:'正在从本站下载轻量模型…'});}}
  await writer.close();writer=null;file=await handle.getFile();report({type:'status',phase:'download',loaded:offset+file.size,total,text:'正在校验轻量模型…'});

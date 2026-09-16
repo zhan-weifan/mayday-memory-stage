@@ -1,5 +1,5 @@
 import {cached,entries,importModel,FILES} from './mobile-model.js';
-import {downloadModel} from './mobile-download.js';
+import {downloadModel} from './mobile-download.js?v=lite-2';
 import {prepare} from './prepare.js?v=lite-1';
 let busy=false;
 const status=(text,phase='loading')=>postMessage({type:'status',text,phase});

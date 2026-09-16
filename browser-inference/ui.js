@@ -1,11 +1,11 @@
 import {preparePhoto} from './photo.js?v=lite-1';
-import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916';
+import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {memoryBox} from '../main.js?v=usability-20260916';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket} from './library.js?v=usability-20260916';
 const $=id=>document.getElementById(id);let records=[],current=null,worker=null,busy=false,epoch=0,urls=[],operation=null,cancelJob=null;
 const mobile=navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-const workerURL=new URL(mobile?'./mobile-worker.js?v=lite-1':'./worker.js?v=decode-1',import.meta.url);
+const workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
