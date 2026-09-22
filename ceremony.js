@@ -90,7 +90,11 @@ export function createCeremony(scene,inside,camera,stage){
   start=performance.now();onReady?.(start);
   return new Promise(resolve=>{resolveArrival=resolve;});
  }
- function reveal(mesh,now=performance.now()){fadeTarget=0;revealing=mesh;revealStart=now;mesh.material.uniforms.reveal.value=0;state('revealing','记忆，正在浮现');active=true;}
+ function reveal(mesh,now=performance.now()){
+  // A fast result may arrive before the photo decodes or the entrance finishes.
+  epoch++;disposeCard();resolveArrival?.();resolveArrival=null;
+  fadeTarget=0;revealing=mesh;revealStart=now;mesh.material.uniforms.reveal.value=0;state('revealing','记忆，正在浮现');active=true;
+ }
  function update(now){
   const dt=previousTime?Math.min((now-previousTime)/1000,.1):0;previousTime=now;
   mat.uniforms.fade.value=THREE.MathUtils.damp(mat.uniforms.fade.value,fadeTarget,4.5,dt);

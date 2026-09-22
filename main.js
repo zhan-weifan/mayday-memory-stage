@@ -7,7 +7,7 @@ import { MemoryGaussians } from './gaussian.js?v=repair-v2';
 import { applyBakedLighting } from './baked-lighting.js?v=gallery-20260913-1';
 import { buildComputer } from './observatory.js';
 import { addLogoSticker } from './logo-sticker.js';
-import { createCeremony } from './ceremony.js?v=glass-progress-1';
+import { createCeremony } from './ceremony.js?v=mobile-20260922';
 import { createStudio } from './studio.js?v=repair-v2';
 import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from './vendor/addons/postprocessing/GTAOPass.js';
@@ -265,7 +265,8 @@ const memoryBox={
  waiting(message){if(memoryMesh)memoryMesh.visible=false;demo.visible=false;ceremony.wait(message);},
   cancelCreation(){loadVersion++;ceremony.cancel();if(memoryMesh)memoryMesh.visible=true;else demo.visible=true;},
   releaseLoadedMemory(){
-   if(!memoryMesh)return false;
+    loadVersion++;ceremony.cancel();demo.visible=true;
+    if(!memoryMesh)return false;
    inside.remove(memoryMesh);memoryMesh.dispose();memoryMesh=null;return true;
   },
 
