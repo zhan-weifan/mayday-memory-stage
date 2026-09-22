@@ -5,6 +5,7 @@ export class MemoryGaussians extends THREE.Mesh {
   constructor(buffer) {
     if (!buffer.byteLength || buffer.byteLength % 64) throw new Error('记忆模型数据不完整。');
     const data=new Float32Array(buffer),count=data.length/16;
+    for(const value of data)if(!Number.isFinite(value))throw Error("记忆模型包含无效数值");
     if(count>1500000)throw new Error('记忆模型超出浏览器支持的大小。');
     const width=2048,height=Math.ceil(count*4/width);
     const pixels=new Float32Array(width*height*4);pixels.set(data);
@@ -82,6 +83,7 @@ export class MemoryGaussians extends THREE.Mesh {
     this.sorting=false;
     this.disposed=false;
     this.lastDirection=null;
+    try{
     this.worker=new Worker(new URL('./sort-worker.js',import.meta.url));
     const positions=new Float32Array(count*3);
     for(let i=0;i<count;i++)positions.set(data.subarray(i*16,i*16+3),i*3);
@@ -97,6 +99,7 @@ export class MemoryGaussians extends THREE.Mesh {
     };
     this.worker.onerror=()=>{this.sorting=false;};
     this.viewMatrix=new THREE.Matrix4();
+    }catch(error){this.dispose();throw error;}
   }
   update(camera,resolution){
     this.material.uniforms.viewport.value.copy(resolution);this.material.uniforms.perspective.value=camera.isPerspectiveCamera?1:0;
@@ -108,5 +111,5 @@ export class MemoryGaussians extends THREE.Mesh {
     this.lastDirection=direction;this.sorting=true;
     this.worker.postMessage({direction});
   }
-  dispose(){this.disposed=true;this.worker.terminate();this.geometry.dispose();this.material.dispose();this.texture.dispose();}
+  dispose(){this.disposed=true;this.worker?.terminate();this.geometry.dispose();this.material.dispose();this.texture.dispose();}
 }

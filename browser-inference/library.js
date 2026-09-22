@@ -1,12 +1,61 @@
+import {makeThumbnail} from './thumbnail.js';
+import {modelSize} from './still-format.js';
+export {pack,unpack,normalizeTicket,inspectStill,modelSize} from './still-format.js';
 const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
-let database;
-async function db(){if(database)return database;const r=indexedDB.open('still-local-memories',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('memories'))r.result.createObjectStore('memories',{keyPath:'id'});if(!r.result.objectStoreNames.contains('drafts'))r.result.createObjectStore('drafts');};database=await request(r);return database;}
-export async function save(record){const d=await db();return new Promise((resolve,reject)=>{const tx=d.transaction('memories','readwrite');tx.objectStore('memories').put(record);tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error||Error('本机存储空间不足'));});}
-export async function get(id){return request((await db()).transaction('memories').objectStore('memories').get(id));}
-export async function list(){const d=await db();return new Promise((resolve,reject)=>{const rows=[],r=d.transaction('memories').objectStore('memories').openCursor();r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c){resolve(rows.sort((a,b)=>b.created_at.localeCompare(a.created_at)));return;}const {id,name,created_at,ticket,exported_at,photo,model}=c.value;rows.push({id,name,created_at,ticket,exported_at,photo,bytes:(photo?.size||0)+(model?.byteLength||0)});c.continue();};});}
+let database,opening;
+function storageNotice(text){document.dispatchEvent(new CustomEvent('storage-notice',{detail:text}));}
+async function db(){
+ if(database)return database;
+ if(!opening)opening=new Promise((resolve,reject)=>{
+  const r=indexedDB.open('still-local-memories',2);
+  r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('memories'))r.result.createObjectStore('memories',{keyPath:'id'});if(!r.result.objectStoreNames.contains('drafts'))r.result.createObjectStore('drafts');};
+  r.onblocked=()=>storageNotice('本机收藏库等待其他标签页关闭后才能打开。');
+  r.onerror=()=>{opening=null;reject(r.error);};
+  r.onsuccess=()=>{database=r.result;database.onversionchange=()=>{database.close();database=null;opening=null;storageNotice('收藏库版本已变化，请刷新页面。');};resolve(database);};
+ });
+ return opening;
+}
+const metaKey=id=>['memory-meta-v1',id];
+const deletedKey=id=>['memory-deleted-v1',id];
+function summary(record){return {id:record.id,name:record.name,created_at:record.created_at,ticket:record.ticket,exported_at:record.exported_at,settings:record.settings,thumbnail:record.thumbnail||null,bytes:(record.photo?.size||0)+modelSize(record.model)};}
+function completion(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onabort=tx.onerror=()=>reject(tx.error||Error('本机存储写入失败'));});}
+// Compatibility index in the EXISTING drafts store, no schema upgrade or data removal.
+// Legacy full records are visited once. Subsequent lists only read small summaries.
+async function ensureIndex(){
+ const d=await db(),tx=d.transaction(['memories','drafts'],'readwrite'),done=completion(tx),meta=tx.objectStore('drafts');
+ const marker=meta.get('memory-meta-index-v1');
+ marker.onsuccess=()=>{if(marker.result)return;const cursor=tx.objectStore('memories').openCursor();cursor.onsuccess=()=>{const row=cursor.result;if(!row){meta.put(true,'memory-meta-index-v1');return;}const key=metaKey(row.key),existing=meta.get(key);existing.onsuccess=()=>{if(!existing.result)meta.put(summary(row.value),key);row.continue();};};};
+ await done;return d;
+}
+export async function save(record){
+ const thumbnail=record.thumbnail||await makeThumbnail(record.photo),d=await db();
+ const tx=d.transaction(['memories','drafts'],'readwrite'),done=completion(tx),meta=tx.objectStore('drafts');
+ const tombstone=meta.get(deletedKey(record.id));
+ tombstone.onsuccess=()=>{try{if(tombstone.result){tx.abort();return;}tx.objectStore('memories').put({...record,thumbnail});meta.put(summary({...record,thumbnail}),metaKey(record.id));}catch{tx.abort();}};
+ await done;record.thumbnail=thumbnail;
+}
+export async function patchMetadata(id,changes){
+ const d=await ensureIndex(),tx=d.transaction('drafts','readwrite'),done=completion(tx),store=tx.objectStore('drafts');let updated=null;
+ const r=store.get(metaKey(id));
+ r.onsuccess=()=>{try{if(!r.result)return;updated={...r.result};for(const key of ['name','ticket','settings','exported_at','thumbnail'])if(Object.hasOwn(changes,key))updated[key]=changes[key];store.put(updated,metaKey(id));}catch{tx.abort();}};
+ await done;return updated;
+}
+export async function get(id){
+ const d=await ensureIndex(),tx=d.transaction(['memories','drafts']),done=completion(tx);
+ const [record,meta]=await Promise.all([request(tx.objectStore('memories').get(id)),request(tx.objectStore('drafts').get(metaKey(id)))]);await done;
+ if(!record||!meta)return undefined;
+ const merged={...record,...meta};
+ if(!merged.thumbnail){const thumbnail=await makeThumbnail(record.photo);if(thumbnail){const updated=await patchMetadata(id,{thumbnail});if(!updated)return undefined;Object.assign(merged,updated);}}
+ return merged;
+}
+export async function list(){
+ const d=await ensureIndex(),range=IDBKeyRange.bound(['memory-meta-v1'],['memory-meta-v1',[]]);
+ const rows=await request(d.transaction('drafts').objectStore('drafts').getAll(range));
+ return rows.sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+}
 export async function draft(value){const d=await db();if(value===undefined)return request(d.transaction('drafts').objectStore('drafts').get('pending'));return new Promise((resolve,reject)=>{const tx=d.transaction('drafts','readwrite'),store=tx.objectStore('drafts');if(value===null)store.delete('pending');else store.put(value,'pending');tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error);});}
-export function pack(record){const {photo,model,...meta}=record;const json=new TextEncoder().encode(JSON.stringify({...meta,photoType:photo.type,photoBytes:photo.size,modelBytes:model.byteLength}));const head=new Uint32Array([0x4c4c5453,1,json.length]);return new Blob([head,json,photo,model],{type:'application/octet-stream'});}
-export async function unpack(file){if(file.size>150*1024*1024)throw Error('记忆文件过大');const data=await file.arrayBuffer(),head=new DataView(data);if(data.byteLength<12||head.getUint32(0,true)!==0x4c4c5453||head.getUint32(4,true)!==1)throw Error('不是有效的 Still 记忆文件');const size=head.getUint32(8,true);if(size>100000||size+12>data.byteLength)throw Error('记忆文件已损坏');const meta=JSON.parse(new TextDecoder().decode(data.slice(12,12+size)));if(!Number.isSafeInteger(meta.photoBytes)||meta.photoBytes<1||!Number.isSafeInteger(meta.modelBytes)||meta.modelBytes<6400||meta.modelBytes%64||12+size+meta.photoBytes+meta.modelBytes!==data.byteLength)throw Error('记忆文件不完整');return {id:crypto.randomUUID(),name:String(meta.name||'一段记忆').slice(0,60),created_at:new Date().toISOString(),settings:meta.settings||{},ticket:normalizeTicket(meta.ticket),photo:new Blob([data.slice(12+size,12+size+meta.photoBytes)],{type:['image/jpeg','image/png','image/webp'].includes(meta.photoType)?meta.photoType:'image/jpeg'}),model:data.slice(12+size+meta.photoBytes)};}
 
-export function normalizeTicket(value){return {city:String(value?.city||'').slice(0,32),venue:String(value?.venue||'').slice(0,60),date:/^\d{4}-\d{2}-\d{2}$/.test(value?.date||'')?value.date:''};}
-export async function remove(id){const d=await db();return new Promise((resolve,reject)=>{const tx=d.transaction('memories','readwrite');tx.objectStore('memories').delete(id);tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error);});}
+export async function remove(id){
+ const d=await db(),tx=d.transaction(['memories','drafts'],'readwrite'),done=completion(tx);
+ tx.objectStore('memories').delete(id);const meta=tx.objectStore('drafts');meta.delete(metaKey(id));meta.put(true,deletedKey(id));await done;
+}

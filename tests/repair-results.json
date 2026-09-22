@@ -1,0 +1,252 @@
+{
+  "date": "2026-09-19T05:41:58.994Z",
+  "browser": "Headless Edge / isolated contexts / software GPU",
+  "results": [
+    {
+      "name": "still-format / legacy compatibility / bounded header reads",
+      "status": "passed",
+      "detail": {
+        "roundTrip": true,
+        "legacyDefaults": true,
+        "invalidCases": 10,
+        "preflightReads": [
+          [
+            0,
+            12
+          ],
+          [
+            12,
+            66
+          ]
+        ]
+      }
+    },
+    {
+      "name": "legacy library index / metadata-only edits / atomic deletion",
+      "status": "passed",
+      "detail": {
+        "legacyRead": true,
+        "heavyReadsForListAndEdit": 0,
+        "thumbnailBytes": 1256,
+        "debouncedWrites": 1,
+        "deleteProtected": true
+      }
+    },
+    {
+      "name": "thumbnail crops center square without stretching in both image paths",
+      "status": "passed",
+      "detail": {
+        "ratios": [
+          "16:9",
+          "9:16",
+          "3:4",
+          "1:1"
+        ],
+        "paths": [
+          "createImageBitmap",
+          "Image fallback"
+        ],
+        "sourceUnchanged": true
+      }
+    },
+    {
+      "name": "layout / focus / export defaults: portrait",
+      "status": "passed",
+      "detail": {
+        "stage": {
+          "x": 0,
+          "y": 248,
+          "width": 390,
+          "height": 596,
+          "top": 248,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "film": "720p30",
+        "webgl": false,
+        "heads": 1,
+        "scrollWidth": 390,
+        "width": 390,
+        "hint": "单指旋转视角 · 双指缩放"
+      }
+    },
+    {
+      "name": "layout / focus / export defaults: landscape",
+      "status": "passed",
+      "detail": {
+        "stage": {
+          "x": 0,
+          "y": 150,
+          "width": 844,
+          "height": 240,
+          "top": 150,
+          "right": 844,
+          "bottom": 390,
+          "left": 0
+        },
+        "film": "720p30",
+        "webgl": false,
+        "heads": 1,
+        "scrollWidth": 844,
+        "width": 844,
+        "hint": "单指旋转视角 · 双指缩放"
+      }
+    },
+    {
+      "name": "layout / focus / export defaults: desktop",
+      "status": "passed",
+      "detail": {
+        "stage": {
+          "x": 0,
+          "y": 141,
+          "width": 1343,
+          "height": 759,
+          "top": 141,
+          "right": 1343,
+          "bottom": 900,
+          "left": 0
+        },
+        "film": "1080p60",
+        "webgl": false,
+        "heads": 1,
+        "scrollWidth": 1365,
+        "width": 1365,
+        "hint": "单指旋转视角 · 双指缩放"
+      }
+    },
+    {
+      "name": "WebGL failure / data import / export / ticket flush / retry cleanup",
+      "status": "passed",
+      "detail": {
+        "repeatedInitAttempts": 8,
+        "dataSavedWithoutWebGL": true,
+        "export": true,
+        "originalPhoto": true,
+        "deleteProtected": true
+      }
+    },
+    {
+      "name": "module fetch failure has refresh fallback and working shell",
+      "status": "passed",
+      "detail": {
+        "refreshFallback": true,
+        "drawer": true
+      }
+    },
+    {
+      "name": "viewer business retry succeeds after transient WebGL failure",
+      "status": "passed",
+      "detail": {
+        "renderer": true,
+        "canvases": 1,
+        "scrollControls": 1
+      }
+    },
+    {
+      "name": "storage abort is atomic / failed ticket save remains retryable",
+      "status": "passed",
+      "detail": {
+        "atomicAbort": true,
+        "retryAttempts": 3
+      }
+    },
+    {
+      "name": "large mobile import preserves original model without starting viewer",
+      "status": "passed",
+      "detail": {
+        "bytes": 4194368,
+        "first": 12.5,
+        "viewer": false,
+        "thumbnail": true
+      }
+    },
+    {
+      "name": "ticket edits stay with their memory during immediate and reordered selection",
+      "status": "passed",
+      "detail": {
+        "flushToA": true,
+        "reorderedSelection": "B"
+      }
+    },
+    {
+      "name": "simulated inference completes and saves with WebGL unavailable",
+      "status": "passed",
+      "detail": {
+        "simulatedWorker": true,
+        "savedWithoutViewer": true,
+        "reopened": true,
+        "exportedBytes": 186389,
+        "photoBytes": 179535,
+        "modelBytes": 6400,
+        "ticket": "无 WebGL 记忆"
+      }
+    },
+    {
+      "name": "initialization failure after renderer creation cleans up before retry",
+      "status": "passed",
+      "detail": {
+        "partialCleanup": true,
+        "retry": true
+      }
+    },
+    {
+      "name": "bootstrap dependency failure exposes a refresh control",
+      "status": "passed",
+      "detail": {
+        "staticFallback": true
+      }
+    },
+    {
+      "name": "welcome state restores across reloads and storage errors",
+      "status": "passed",
+      "detail": {
+        "firstVisit": true,
+        "refresh": true,
+        "newTab": true,
+        "readFailureSafe": true,
+        "writeFailureSafe": true
+      }
+    },
+    {
+      "name": "generated save errors are classified and export remains available",
+      "status": "passed",
+      "detail": {
+        "quota": "distinct",
+        "transaction": "distinct",
+        "unknown": "distinct",
+        "exportFallback": true
+      }
+    },
+    {
+      "name": "import save failures describe render, budget, and visible fallback accurately",
+      "status": "passed",
+      "detail": {
+        "renderError": true,
+        "overBudget": true,
+        "displayed": true,
+        "exportAvailable": true
+      }
+    },
+    {
+      "name": "encoder fallback advice checks actual landscape and portrait 720P30 capability",
+      "status": "passed",
+      "detail": {
+        "landscape": true,
+        "portrait": true,
+        "unsupported720NotRecommended": true,
+        "direct720Failure": true
+      }
+    },
+    {
+      "name": "720P30 encoder smoke / original 52-second timeline retained",
+      "status": "passed",
+      "detail": {
+        "frames": 3,
+        "bytes": 1072,
+        "fullTimeline": 52,
+        "fullFilmTested": false
+      }
+    }
+  ]
+}

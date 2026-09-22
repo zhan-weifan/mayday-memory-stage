@@ -15,9 +15,12 @@ export function createStudio(renderer){
  card([1,3,-6],[3,4],[1.2,1.35,1.6]);
  const ground=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshBasicMaterial({color:new THREE.Color(.19,.17,.145),toneMapped:false}));ground.rotation.x=-Math.PI/2;ground.position.y=-4;room.add(ground);
  const cubeTarget=new THREE.WebGLCubeRenderTarget(512,{type:THREE.HalfFloatType,generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});
+ let environment,pmrem;
+ try{
  const capture=new THREE.CubeCamera(.1,50,cubeTarget);capture.position.set(0,1,0);capture.update(renderer,room);
- const pmrem=new THREE.PMREMGenerator(renderer);const environment=pmrem.fromCubemap(cubeTarget.texture);pmrem.dispose();
- return {environment:environment.texture,reflection:cubeTarget.texture};
+ pmrem=new THREE.PMREMGenerator(renderer);environment=pmrem.fromCubemap(cubeTarget.texture);
+ return {environment:environment.texture,reflection:cubeTarget.texture,dispose(){environment.dispose();cubeTarget.dispose();}};
+ }catch(error){environment?.dispose();cubeTarget.dispose();throw error;}finally{pmrem?.dispose();room.traverse(node=>{node.geometry?.dispose();node.material?.dispose();});}
 }
 
 /** Fine molded-ABS grain and low-amplitude roughness variations, generated

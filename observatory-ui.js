@@ -1,4 +1,4 @@
-import {memoryBox} from './main.js?v=usability-20260916';
+import {memoryBox} from './viewer-loader.js';
 
 const $=id=>document.getElementById(id);
 const views=document.createElement('div');views.className='arena-views';

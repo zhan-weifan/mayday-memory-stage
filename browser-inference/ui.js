@@ -1,12 +1,15 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
-import {memoryBox} from '../main.js?v=usability-20260916';
+import {memoryBox} from '../viewer-loader.js';
 import {FILES} from './mobile-model.js';
-import {save,list,get,draft,pack,unpack,remove,normalizeTicket} from './library.js?v=usability-20260916';
-const $=id=>document.getElementById(id);let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
-const mobile=navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-const workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
+import {save,list,get,draft,pack,unpack,remove,normalizeTicket,patchMetadata,modelSize} from './library.js';
+import {sidebar,markWelcomed} from '../ui-shell.js';
+import {constrainedDevice,displayPolicy,executionCapabilities} from '../device-capabilities.js';
+import {createTicketSaver} from './ticket-save.js';
+const $=id=>document.getElementById(id);let selectionEpoch=0;let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
+let mobile=constrainedDevice();
+let workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
@@ -46,6 +49,18 @@ $('generation-cancel').onclick=()=>{if(busy)stop();else progressPanel.hidden=tru
 $('generation-retry').onclick=()=>{if(retryPhoto)create(retryPhoto);};
 function updateProgress(data){memoryBox.setGenerationProgress(data.phase==='download'&&data.total>0?data.loaded/data.total:null);progressPanel.hidden=false;$('generation-status').textContent=data.text;const bar=$('generation-bar');if(data.phase==='download'&&Number.isFinite(data.total)&&data.total>0){bar.value=Math.min(1,data.loaded/data.total);$('generation-detail').textContent=`${Math.floor(bar.value*100)}% · ${(data.loaded/1048576).toFixed(1)} / ${(data.total/1048576).toFixed(1)} MB · 照片未上传`;}else{bar.removeAttribute('value');$('generation-detail').textContent='照片留在本机 · 请保持页面打开';}}
 function notice(text=''){ $('notice').textContent=text;$('notice').hidden=!text;}
+const idbSaveFailureNames=new Set(['AbortError','ConstraintError','DataError','InvalidStateError','ReadOnlyError','TransactionInactiveError','VersionError']);
+function saveFailureMessage(error){
+ if(error?.name==='QuotaExceededError')return '浏览器报告本机存储空间不足，无法保存到记忆库。';
+ if(idbSaveFailureNames.has(error?.name)||error?.message==='本机存储写入失败')return '本机记忆库写入事务失败，无法确认已保存。';
+ return '本机保存失败，具体原因无法确认。';
+}
+function unsavedViewMessage(result){
+ if(result?.state==='displayed')return '3D 已在当前页面打开，但这份记忆未保存到本机；请立即导出 .still 文件备份。';
+ if(result?.state==='over-budget')return '模型超过当前设备的保守显示预算，未启动 3D；文件仅在当前页面中，请立即导出 .still 文件备份。';
+ if(result?.state==='render-error')return `当前设备无法显示 3D（${result.reason||'原因未确认'}）；原文件仅在当前页面中，请立即导出 .still 文件备份。`;
+ return '当前页面未能确认 3D 显示状态；请立即导出 .still 文件备份，再关闭页面。';
+}
 async function storageEstimate(){
  const storage=navigator.storage;
  if(!storage?.estimate)return null;
@@ -72,17 +87,21 @@ async function updateStorageStatus(persisted=null){
  node.textContent=`首次约需 ${mobileModelSize} 轻量模型 · 下载后优先保存在本机 · 照片不会上传 · ${estimateText} · ${risk?'⚠ 估算可用额度低于模型体积，可能不足':persistenceText}`;
 }
 function requestPersistentStorage(){return storagePersistence(true).then(updateStorageStatus);}
-function sidebar(open){document.body.classList.toggle('sidebar-open',open);$('toggle-sidebar').textContent=open?'关闭':'调整';$('toggle-sidebar').setAttribute('aria-expanded',String(open));$('close-sidebar').hidden=!open;}
 function lock(on){busy=on;$('library').disabled=on;$('replay-creation').disabled=on;$('choose-photo').textContent=on?'取消制作':'＋ 新建记忆';$('import-memory').disabled=on;$('view-example').disabled=on;for(const id of ['welcome-example','welcome-create','ticket-city','ticket-venue','ticket-date','save-settings','download-memory','rename-memory','delete-memory']){const el=$(id);if(el)el.disabled=on;}document.querySelectorAll('.memory-card').forEach(b=>b.disabled=on);}
 function stop(){draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;epoch++;operation=null;cancelJob?.(Error('已取消'));cancelJob=null;clearTimeout(watchdog);watchdog=null;worker?.terminate();worker=null;memoryBox.setInferencePaused(false);memoryBox.setComputing(false);memoryBox.cancelCreation();lock(false);status('制作已取消 · 已有记忆保留');notice('制作已取消，已有记忆保留。');}
 function status(text){$('job-message').textContent=text;$('connection').textContent=text;}
 async function refresh(){try{records=await list();records.forEach(r=>savedIds.add(r.id));}catch{notice('浏览器存储不可用，生成后请立即导出记忆。');}const select=$('library');select.replaceChildren();const placeholder=new Option('选择一份记忆…','');select.append(placeholder);for(const r of records){const o=document.createElement('option');o.value=r.id;o.textContent=r.name;select.append(o);}$('library-section').hidden=!records.length;$('memory-count').textContent=records.length;if(current)select.value=current.id;renderLibrary();}
 async function show(record,reveal=false){
+ await flushPendingTicketSave();
+ memoryBox.setRecordSettings(record.settings);
  const token=++epoch;if(!reveal)memoryBox.cancelCreation();current=record;restoreTicket(record.ticket);document.querySelector('.first-visit').hidden=true;
  urls.forEach(URL.revokeObjectURL);urls=[];
  const photo=record.photo?URL.createObjectURL(record.photo):record.photo_url,model=record.model?URL.createObjectURL(new Blob([record.model])):record.model_url;if(record.photo)urls.push(photo);if(record.model)urls.push(model);
  $('current-memory').hidden=false;$('photo-preview').src=photo;$('memory-name').textContent=record.name;$('memory-date').textContent=new Date(record.created_at).toLocaleDateString('zh-CN');$('steps').hidden=true;$('retry').hidden=true;$('memory-actions').hidden=false;$('download-memory').hidden=!record.model;$('save-settings').textContent='保存设置到本机';$('library').value=record.id;for(const id of ['rename-memory','delete-memory'])$(id).hidden=!record.model;
- status('正在打开这段记忆…');try{await memoryBox.load(model,record.settings,reveal);if(token!==epoch)return;status(storageStatus(record));renderLibrary();}catch(e){if(token===epoch){notice(e.message);sidebar(true);}throw e;}
+ markWelcomed();
+ if(record.model&&!displayPolicy(modelSize(record.model)).allowed){memoryBox.releaseLoadedMemory();status(storageStatus(record));notice('文件已打开；模型超过当前设备的保守显示预算，暂不启动 3D。'+(savedIds.has(record.id)?'原始数据保留，可收藏和导出备份。':'这份记忆尚未保存到本机，请立即导出备份。')+'此预算仍需真机验证。');renderLibrary();return {state:'over-budget'};}
+ status('正在打开这段记忆…');try{await memoryBox.load(model,record.settings,reveal);if(token!==epoch)return {state:'superseded'};status(storageStatus(record));renderLibrary();return {state:'displayed'};}catch(e){if(token===epoch){memoryBox.releaseLoadedMemory();status(storageStatus(record));notice('当前设备无法显示 3D：'+e.message+(savedIds.has(record.id)?'。仍可查看原图、管理收藏和导出备份。':'。这份记忆尚未保存到本机，仍可查看原图并导出备份。'));sidebar(true);}return {state:'render-error',reason:e?.message};}
+
 }
 const nextAnimationFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
 async function prepareMobileForNewCreation(){
@@ -124,6 +143,14 @@ async function probeWorker(){
  try{await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('这个浏览器的后台计算未响应。请用最新版 Chrome 打开同一网址再试；已有记忆仍可查看。')),15000);probe=new Worker(workerURL,{type:'module'});probe.onmessage=({data})=>{if(data.type==='probe-ready'){if(mobile)mobileReady=!!data.cached||!!mobileModelFile;resolve();}else if(data.type==='error')reject(Error(data.text+'。请用最新版 Chrome 打开同一网址再试。'));};probe.onerror=()=>reject(Error('浏览器无法启动后台计算组件，请用最新版 Chrome 打开同一网址再试。'));probe.postMessage({type:'probe'});});}finally{clearTimeout(timer);probe?.terminate();}
 }
 async function setup(){
+ if(busy||modelImport)return;
+ sidebar(false);if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();$('gpu-status').textContent='正在检测运行能力…';
+ const capabilities=await executionCapabilities();
+ mobile=constrainedDevice()||!capabilities.fp16;
+ workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
+ modelSection.hidden=!mobile;
+ if(mobile){$('model-description').textContent='本机使用 Lite 模型，首次约 '+mobileModelSize+'。下载和校验成功不代表设备一定能完成运行。';$('generation-explanation').textContent='请保持页面打开。执行结果取决于浏览器运行能力和可用资源；重要记忆请导出备份。';}
+ if(!capabilities.worker||!capabilities.wasm){if(!dialog.open)dialog.showModal();$('gpu-status').textContent='当前浏览器无法执行本机模型；仍可导入和管理记忆文件。';return;}
  if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();
  if(mobile){void updateStorageStatus();$('mobile-generation-advice').hidden=false;$('local-select').textContent='选择照片 · 轻量制作';$('gpu-status').textContent='正在检查本机模型…';$('local-select').disabled=$('local-example').disabled=true;try{await probeWorker();deviceReady=true;if(!modelImport){if(mobileReady){$('gpu-status').textContent='轻量模型已就绪 · 使用本机 CPU';readyControls();void requestPersistentStorage();}else await verifySource();}}catch(e){$('gpu-status').textContent=e.message;}return;}
  $('local-select').disabled=$('local-example').disabled=true;
@@ -146,6 +173,7 @@ async function create(file){
  if(busy||starting||modelImport)return;if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)){notice('请选择 JPG、PNG 或 WebP 照片');return;}if(file.size>25*1024*1024){notice('照片不能超过 25 MB');return;}
  starting=true;
  try{
+ await flushPendingTicketSave();
  if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
  const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
  dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
@@ -157,12 +185,12 @@ async function create(file){
  const prepared=await preparePhoto(file,mobile?256:1536);if(operation!==op)return;
  arrival=Promise.resolve().then(()=>memoryBox.beginCreation(file,file.name.replace(/\.[^.]+$/,''))).then(()=>{arrived=true;if(token===epoch)memoryBox.waiting(lastStatus);});
  runningWorker=new Worker(workerURL,{type:'module'});worker=runningWorker;
- const result=new Promise((resolve,reject)=>{cancelJob=reject;const arm=(ms,text)=>{clearTimeout(watchdog);watchdog=setTimeout(()=>reject(Error(text)),ms);};arm(30000,'本机任务没有启动响应，请更新浏览器并刷新重试');runningWorker.onmessage=({data})=>{if(token!==epoch)return;if(data.type==='status'){if(['initializing','inference','packing'].includes(data.phase))memoryBox.setInferencePaused(true);arm(['initializing','inference'].includes(data.phase)?(mobile?900000:300000):60000,'当前步骤长时间没有响应：'+data.text+'。请重试；若再次失败，请提供手机型号和浏览器。');lastStatus=data.text;updateProgress(data);status(data.text);if(arrived)memoryBox.waiting(data.text);}else if(data.type==='complete')resolve(data.buffer);else if(data.type==='error')reject(Error(data.text));};runningWorker.onerror=()=>reject(Error('浏览器未能完成推理，可能是内存不足或 GPU 不兼容。已有记忆仍可打开。'));});
+ const result=new Promise((resolve,reject)=>{cancelJob=reject;const arm=(ms,text)=>{clearTimeout(watchdog);watchdog=setTimeout(()=>reject(Error(text)),ms);};arm(30000,'本机任务没有启动响应，请更新浏览器并刷新重试');runningWorker.onmessage=({data})=>{if(token!==epoch)return;if(data.type==='status'){if(['initializing','inference','packing'].includes(data.phase))memoryBox.setInferencePaused(true);arm(['initializing','inference'].includes(data.phase)?(mobile?900000:300000):60000,'当前步骤长时间没有响应：'+data.text+'。请重试；若再次失败，请提供手机型号和浏览器。');lastStatus=data.text;updateProgress(data);status(data.text);if(arrived)memoryBox.waiting(data.text);}else if(data.type==='complete')resolve(data.buffer);else if(data.type==='error')reject(Error(data.text));};runningWorker.onerror=()=>reject(Error('后台任务意外中断，原因尚无法确认。已有记忆仍可管理。'));});
  runningWorker.postMessage({prepared,...(mobile?{file:mobileModelFile,modelBase}:{})},[prepared.pixels.buffer]);
- const [buffer]=await Promise.all([result,arrival]);runningWorker.terminate();worker=null;memoryBox.setInferencePaused(false);void requestPersistentStorage();if(token!==epoch)return;
+ const buffer=await result;runningWorker.terminate();worker=null;memoryBox.setInferencePaused(false);void requestPersistentStorage();if(token!==epoch)return;
  const record={id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,'').slice(0,60)||'一段记忆',created_at:new Date().toISOString(),photo:file,model:buffer,settings:{designVersion:2,depthVolume:1},ticket:readTicket()};
- try{await save(record);savedIds.add(record.id);void requestPersistentStorage();}catch{notice('本机存储不足，请立即导出这份记忆。');}
- await draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;await refresh();await show(record,true);completed=true;previousMemoryId=null;
+ let saveError=null;try{await save(record);savedIds.add(record.id);void requestPersistentStorage();}catch(e){saveError=e;}
+ await draft(null).catch(()=>{});progressPanel.hidden=true;retryPhoto=null;await refresh();completed=true;const displayResult=await show(record,true);if(saveError)notice(`${saveFailureMessage(saveError)} ${unsavedViewMessage(displayResult)}`);previousMemoryId=null;
  }catch(e){if(operation===op){updateProgress({text:'制作未完成：'+e.message});progressPanel.querySelector('strong').textContent='制作已暂停';$('generation-bar').hidden=true;$('generation-detail').textContent='照片未上传 · 请根据上方原因重试';$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';notice('制作未完成：'+e.message);status('照片没有上传，可重试或换一台设备。');sidebar(true);}}
  finally{
   const ownsOperation=operation===op;
@@ -181,33 +209,66 @@ async function create(file){
  }finally{starting=false;}
 }
 $('choose-photo').onclick=()=>busy?stop():setup();$('photo-input').onchange=e=>{create(e.target.files[0]);e.target.value='';};
-const importButton=document.createElement('button');importButton.id='import-memory';importButton.textContent='打开记忆文件';importButton.className='quiet';$('creation').append(importButton);const input=document.createElement('input');input.type='file';input.accept='.still';input.hidden=true;document.body.append(input);importButton.onclick=()=>input.click();input.onchange=async()=>{try{const r=await unpack(input.files[0]);try{await save(r);savedIds.add(r.id);void requestPersistentStorage();}catch{notice('无法保存到浏览器，但仍可查看这份记忆。');}await refresh();await show(r);}catch(e){notice(e.message);sidebar(true);}input.value='';};
-$('library').onchange=async()=>{if(busy)return;const id=$('library').value;await ticketQueue;try{const r=await get(id);if(r)await show(r);}catch(e){notice(e.message);}};
-$('save-settings').onclick=async()=>{if(!current||busy)return;await ticketQueue;const record=current;if(!record)return;record.settings=memoryBox.getSettings();record.exported_at=null;try{if(record.model){record.ticket=readTicket();dirtyIds.add(record.id);await save(record);savedIds.add(record.id);dirtyIds.delete(record.id);if(current===record)status(storageStatus(record));await refresh();}else localStorage.setItem(`still-demo-settings-${record.id}`,JSON.stringify(record.settings));notice('设置已保存在这台设备。');}catch(e){if(current===record)status('修改尚未保存，请立即导出');notice('保存失败：'+e.message);}};
+const importButton=document.createElement('button');importButton.id='import-memory';importButton.textContent='打开记忆文件';importButton.className='quiet';$('creation').append(importButton);const input=document.createElement('input');input.type='file';input.accept='.still';input.hidden=true;document.body.append(input);importButton.onclick=()=>input.click();input.onchange=async()=>{if(!input.files[0]||busy)return;selectionEpoch++;lock(true);$('choose-photo').disabled=true;try{await flushPendingTicketSave();const r=await unpack(input.files[0]);let saveError=null;try{await save(r);savedIds.add(r.id);void requestPersistentStorage();}catch(e){saveError=e;}await refresh();const displayResult=await show(r);if(saveError)notice(`${saveFailureMessage(saveError)} ${unsavedViewMessage(displayResult)}`);}catch(e){notice(e.message);sidebar(true);}finally{input.value='';$('choose-photo').disabled=false;lock(false);}};
+$('library').onchange=()=>openSaved($('library').value);
+$('save-settings').onclick=async()=>{if(!current||busy)return;const record=current,settings=memoryBox.getSettings();await flushPendingTicketSave();record.settings=settings;record.exported_at=null;try{if(record.model){dirtyIds.add(record.id);await persistCurrent(record);savedIds.add(record.id);dirtyIds.delete(record.id);if(current===record)status(storageStatus(record));await refresh();}else localStorage.setItem(`still-demo-settings-${record.id}`,JSON.stringify(record.settings));notice('设置已保存在这台设备。');}catch(e){if(current===record)status('修改尚未保存，请立即导出');notice('保存失败：'+e.message);}};
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-$('download-memory').textContent='导出记忆文件 ↓';$('download-memory').onclick=async()=>{if(busy)return;await ticketQueue;const record=current;if(record?.model){record.settings=memoryBox.getSettings();record.ticket=readTicket();download(pack(record),`${record.name.replace(/[\\/:*?"<>|]/g,'_')}.still`);record.exported_at=new Date().toISOString();notice('已发起导出，请确认文件已下载后再删除记忆。');if(savedIds.has(record.id)){try{await save(record);dirtyIds.delete(record.id);await refresh();}catch{notice('已发起导出，但未能更新本机备份记录，请确认下载文件。');}}}};
-$('snapshot').onclick=()=>{const a=document.createElement('a');a.href=memoryBox.capture();a.download='still-memory.png';a.click();};
+$('download-memory').textContent='导出记忆文件 ↓';$('download-memory').onclick=async()=>{if(busy||!current)return;const record=current,settings=memoryBox.getSettings();try{await flushPendingTicketSave();}catch{notice('本机写入未完成，将导出包含当前修改的备份。');}if(record?.model){record.settings=settings;download(pack(record),`${record.name.replace(/[\\/:*?"<>|]/g,'_')}.still`);record.exported_at=new Date().toISOString();notice('已发起导出，请确认文件已下载后再删除记忆。');if(savedIds.has(record.id)){try{await persistCurrent(record);dirtyIds.delete(record.id);await refresh();}catch{notice('已发起导出，但未能更新本机备份记录，请确认下载文件。');}}}};
+$('snapshot').onclick=()=>{try{const a=document.createElement('a');a.href=memoryBox.capture();a.download='still-memory.png';a.click();}catch(e){notice(e.message);}};
 $('replay-creation').onclick=async()=>{if(busy||!current)return;lock(true);const r=current,op={};operation=op;try{const photo=r.photo||await(await fetch(r.photo_url)).blob();if(operation!==op)return;await memoryBox.beginCreation(photo,r.name);await new Promise(resolve=>setTimeout(resolve,1200));if(operation===op)await show(r,true);}catch(e){if(operation===op){memoryBox.cancelCreation();notice(e.message);}}finally{if(operation===op){operation=null;lock(false);}}};
-$('toggle-sidebar').onclick=()=>sidebar(!document.body.classList.contains('sidebar-open'));$('close-sidebar').onclick=()=>sidebar(false);
+
 window.addEventListener('beforeunload',e=>{if(busy||modelImport){e.preventDefault();e.returnValue='';}});
 for(const type of ['dragover','drop'])document.addEventListener(type,e=>e.preventDefault());document.addEventListener('drop',e=>{if(!busy){notice('请点击「新建记忆」检查设备后选择照片。');sidebar(true);}});
-const example=document.createElement('button');example.id='view-example';example.className='quiet';example.textContent='查看示例';$('library-section').before(example);example.onclick=async()=>{if(busy)return;dialog.close();try{const demo=await(await fetch('./memory.json?v=gallery-20260913-1')).json();try{demo.settings=JSON.parse(localStorage.getItem(`still-demo-settings-${demo.id}`))||demo.settings;}catch{}await show(demo);}catch(e){notice(e.message);sidebar(true);}};
-async function boot(){document.querySelector('.format-note').textContent='照片留在本机 · JPG / PNG / WebP';$('creation').hidden=false;await refresh();status('等待收藏 · 新建记忆或打开已有记忆');const pending=await draft().catch(()=>null);if(pending?.photo){restoreTicket(pending.ticket);retryPhoto=new File([pending.photo],pending.name||'未完成的记忆.jpg',{type:pending.photo.type});updateProgress({text:'上次制作中断了，可能是页面关闭或手机资源不足。照片已保留，可手动重试。'});progressPanel.querySelector('strong').textContent='发现未完成的记忆';$('generation-bar').hidden=true;$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';}}boot().catch(e=>{notice(e.message);sidebar(true);});
+const example=document.createElement('button');example.id='view-example';example.className='quiet';example.textContent='查看示例';$('library-section').before(example);example.onclick=async()=>{if(busy)return;const selection=++selectionEpoch;dialog.close();try{await flushPendingTicketSave();const demo=await(await fetch('./memory.json?v=gallery-20260913-1')).json();try{demo.settings=JSON.parse(localStorage.getItem(`still-demo-settings-${demo.id}`))||demo.settings;}catch{}if(selection===selectionEpoch)await show(demo);}catch(e){notice(e.message);sidebar(true);}};
+async function boot(){document.querySelector('.format-note').textContent='照片留在本机 · JPG / PNG / WebP';$('creation').hidden=false;await refresh();status('等待收藏 · 新建记忆或打开已有记忆');const pending=await draft().catch(()=>null);if(pending?.photo){restoreTicket(pending.ticket);retryPhoto=new File([pending.photo],pending.name||'未完成的记忆.jpg',{type:pending.photo.type});updateProgress({text:'上一次任务未正常完成，可能与页面关闭、浏览器资源限制或其他运行中断有关。照片已保留，可手动重试。'});progressPanel.querySelector('strong').textContent='发现未完成的记忆';$('generation-bar').hidden=true;$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';}}
+export const ready=boot().catch(e=>{notice(e.message);sidebar(true);});
 
-import('../mobile-ui.js?v=usability-20260916');
+import('../mobile-ui.js?v=repair-v2').catch(e=>notice('手机布局组件未加载：'+e.message+'。可刷新重试。'));
+document.addEventListener('storage-notice',e=>notice(e.detail));
+document.addEventListener('viewer-retry',()=>{if(current)void show(current).catch(e=>notice(e.message));});
 
 function readTicket(){return normalizeTicket({city:$('ticket-city').value,venue:$('ticket-venue').value,date:$('ticket-date').value});}
 function restoreTicket(value){const t=normalizeTicket(value);$('ticket-city').value=t.city;$('ticket-venue').value=t.venue;$('ticket-date').value=t.date;window.dispatchEvent(new Event('ticket-restored'));}
 function storageStatus(r){return !r.model?'正在查看示例':dirtyIds.has(r.id)?'修改尚未保存，请立即导出':savedIds.has(r.id)?'已保存到当前浏览器':'已生成，但尚未保存，请立即导出';}
-let ticketQueue=Promise.resolve();
-for(const id of ['ticket-city','ticket-venue','ticket-date'])$(id).addEventListener('input',()=>{if(!current||busy)return;const record=current;record.ticket=readTicket();record.exported_at=null;if(!savedIds.has(record.id))return;dirtyIds.add(record.id);const snapshot={...record};ticketQueue=ticketQueue.then(async()=>{try{await save(snapshot);if(record.ticket===snapshot.ticket)dirtyIds.delete(record.id);if(current===record)status('票根已保存到当前浏览器');await refresh();}catch{if(current===record){status('票根修改尚未保存，请立即导出');notice('票根保存失败，请导出记忆文件保留修改。');}}});});
+const ticketSaver=createTicketSaver({write:patchMetadata,
+ onSaved(id,row){dirtyIds.delete(id);const index=records.findIndex(r=>r.id===id);if(index>=0)records[index]=row;if(current?.id===id)status('票根已保存到当前浏览器');renderLibrary();},
+ onError(id){if(current?.id===id){status('票根修改尚未保存，请立即导出');notice('票根保存失败，请导出记忆文件保留修改。');}}
+});
+export function flushPendingTicketSave(){return ticketSaver.flush();}
+for(const id of ['ticket-city','ticket-venue','ticket-date'])$(id).addEventListener('input',()=>{
+ if(!current||busy)return;const record=current;record.ticket=readTicket();record.exported_at=null;
+ if(!savedIds.has(record.id))return;dirtyIds.add(record.id);ticketSaver.schedule(record.id,{ticket:record.ticket,exported_at:null});
+});
+window.addEventListener('pagehide',()=>{void flushPendingTicketSave().catch(()=>{});});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)void flushPendingTicketSave().catch(()=>{});});
+async function persistCurrent(record){
+ if(savedIds.has(record.id)){const row=await patchMetadata(record.id,{name:record.name,ticket:record.ticket,settings:record.settings,exported_at:record.exported_at});if(!row)throw Error('这份记忆已在其他操作中删除');}
+ else await save(record);
+}
 $('welcome-example').onclick=()=>example.click();$('welcome-create').onclick=()=>setup();
 const previewButton=document.createElement('button');previewButton.textContent='先看示例 · 无需模型';previewButton.type='button';previewButton.onclick=()=>example.click();$('gpu-status').after(previewButton);
 const help=document.createElement('p');help.className='backup-help';help.textContent='保存设置：写入当前浏览器。导出备份：下载包含照片、3D 数据和票根的 .still 文件，可在其他设备打开。';$('memory-actions').append(help);
 const manage=document.createElement('div');manage.className='memory-management';manage.innerHTML='<button id="rename-memory">重命名</button><button id="delete-memory">删除记忆</button>';$('memory-actions').append(manage);
-$('rename-memory').onclick=async()=>{if(!current||busy)return;await ticketQueue;const record=current,name=prompt('记忆名称',record.name);if(!name?.trim())return;record.name=name.trim().slice(0,60);record.exported_at=null;dirtyIds.add(record.id);try{if(record.model){await save(record);savedIds.add(record.id);dirtyIds.delete(record.id);}if(current===record)$('memory-name').textContent=record.name;await refresh();}catch{status('修改尚未保存，请立即导出');notice('重命名未保存，请导出备份。');}};
-$('delete-memory').onclick=async()=>{if(!current||busy)return;const record=current;if(!savedIds.has(record.id)){notice('这段记忆没有保存在收藏库。');return;}if(!confirm('删除「'+record.name+'」？只删除当前浏览器中的记忆，无法撤销。请先确认导出文件已下载。'))return;try{await ticketQueue;await remove(record.id);savedIds.delete(record.id);if(current===record){current=null;$('current-memory').hidden=true;memoryBox.cancelCreation();status('已从当前浏览器删除');example.click();}await refresh();}catch(e){notice('删除失败：'+e.message);}};
+$('rename-memory').onclick=async()=>{if(!current||busy)return;const record=current;await flushPendingTicketSave();const name=prompt('记忆名称',record.name);if(!name?.trim())return;record.name=name.trim().slice(0,60);record.exported_at=null;dirtyIds.add(record.id);try{if(record.model){await persistCurrent(record);savedIds.add(record.id);dirtyIds.delete(record.id);}if(current===record)$('memory-name').textContent=record.name;await refresh();}catch{status('修改尚未保存，请立即导出');notice('重命名未保存，请导出备份。');}};
+$('delete-memory').onclick=async()=>{if(!current||busy)return;const record=current;if(!savedIds.has(record.id)){notice('这段记忆没有保存在收藏库。');return;}if(!confirm('删除「'+record.name+'」？只删除当前浏览器中的记忆，无法撤销。请先确认导出文件已下载。'))return;try{ticketSaver.cancel(record.id);await ticketSaver.settled();await remove(record.id);savedIds.delete(record.id);if(current===record){current=null;$('current-memory').hidden=true;memoryBox.cancelCreation();status('已从当前浏览器删除');example.click();}await refresh();}catch(e){ticketSaver.resume(record.id);if(dirtyIds.has(record.id))ticketSaver.schedule(record.id,{ticket:record.ticket,exported_at:record.exported_at});notice('删除失败：'+e.message);}};
 const grid=document.createElement('div');grid.className='memory-grid';$('library-section').append(grid);const storage=document.createElement('p');storage.id='storage-summary';grid.after(storage);let thumbnails=[];
-function renderLibrary(){thumbnails.forEach(URL.revokeObjectURL);thumbnails=[];grid.replaceChildren();let bytes=0;for(const r of records){bytes+=r.bytes||0;const b=document.createElement('button');b.className='memory-card';b.disabled=busy;b.setAttribute('aria-pressed',String(current?.id===r.id));if(r.photo){const img=document.createElement('img');img.alt='';img.src=URL.createObjectURL(r.photo);thumbnails.push(img.src);b.append(img);}const label=document.createElement('span');label.textContent=r.name+'\n'+[r.ticket?.city,r.ticket?.date].filter(Boolean).join(' · ')+'\n'+(r.exported_at?'已发起导出（请确认下载）':'尚未导出备份');b.append(label);b.onclick=async()=>{if(busy)return;await ticketQueue;try{const record=await get(r.id);if(record){await show(record);renderLibrary();}}catch(e){notice(e.message);}};grid.append(b);}storage.textContent='记忆数据约 '+(bytes/1048576).toFixed(1)+' MB（不含模型缓存）';}
+function renderLibrary(){thumbnails.forEach(URL.revokeObjectURL);thumbnails=[];grid.replaceChildren();let bytes=0;for(const r of records){bytes+=r.bytes||0;const b=document.createElement('button');b.className='memory-card';b.disabled=busy;b.setAttribute('aria-pressed',String(current?.id===r.id));if(r.thumbnail){const img=document.createElement('img');img.alt='';img.src=URL.createObjectURL(r.thumbnail);thumbnails.push(img.src);b.append(img);}const label=document.createElement('span');label.textContent=r.name+'\n'+[r.ticket?.city,r.ticket?.date].filter(Boolean).join(' · ')+'\n'+(r.exported_at?'已发起导出（请确认下载）':'尚未导出备份');b.append(label);b.onclick=()=>openSaved(r.id);grid.append(b);}storage.textContent='记忆数据约 '+(bytes/1048576).toFixed(1)+' MB（不含模型缓存）';}
 const hint=$('view-hint');try{if(localStorage.getItem('palinode-gesture-seen'))hint.classList.add('dismissed');}catch{}$('stage').addEventListener('pointerdown',()=>{setTimeout(()=>hint.classList.add('dismissed'),1800);try{localStorage.setItem('palinode-gesture-seen','1');}catch{}},{once:true});
 
+
+const photoDialog=document.createElement('dialog');photoDialog.className='local-generation original-photo';
+photoDialog.innerHTML='<form method="dialog"><button aria-label="关闭原图">关闭</button></form><img alt="记忆原始照片" style="max-width:100%;height:auto">';document.body.append(photoDialog);
+$('photo-preview').tabIndex=0;$('photo-preview').setAttribute('role','button');$('photo-preview').setAttribute('aria-label','打开原始照片');
+function openOriginal(){photoDialog.querySelector('img').src=$('photo-preview').src;photoDialog.showModal();}
+$('photo-preview').onclick=openOriginal;$('photo-preview').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openOriginal();}};
+
+// Report rejected UI actions without leaving unhandled promise rejections.
+for(const id of ['library','save-settings','download-memory','rename-memory','delete-memory','welcome-example','welcome-create','choose-photo']){
+ const node=$(id),property=id==='library'?'onchange':'onclick',handler=node[property];
+ if(handler)node[property]=event=>{try{Promise.resolve(handler.call(node,event)).catch(error=>notice(error.message));}catch(error){notice(error.message);}};
+}
+
+async function openSaved(id){
+ if(busy||!id)return;const selection=++selectionEpoch;
+ try{await flushPendingTicketSave();const record=await get(id);if(selection!==selectionEpoch)return;if(record){await show(record);renderLibrary();}else{notice('这份记忆已不存在，请刷新收藏库。');await refresh();}}catch(error){notice(error.message);}
+}
