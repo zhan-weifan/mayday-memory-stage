@@ -1,7 +1,7 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
-import {memoryBox} from '../viewer-loader.js?v=mobile-20260922';
+import {memoryBox} from '../viewer-loader.js?v=mobile-20260922-2';
 import {normalizeSettings} from '../settings.js';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket,patchMetadata,modelSize} from './library.js';
@@ -114,7 +114,10 @@ async function prepareMobileForNewCreation(){
  if(worker||operation){clearTimeout(watchdog);watchdog=null;worker?.terminate();worker=null;cancelJob?.(Error('旧制作已结束'));cancelJob=null;operation=null;}
  memoryBox.setInferencePaused(false);memoryBox.setComputing(false);
  if(previousMemoryId===current?.id){const {id,name,created_at,ticket,exported_at}=current;current={id,name,created_at,ticket,exported_at};}
- await nextAnimationFrame();await nextAnimationFrame();return previousMemoryId;
+ // iOS Safari can suspend requestAnimationFrame while a modal file picker/dialog
+ // is active. The renderer cleanup above is synchronous, so do not wait on frames
+ // before allowing the next generation to start.
+ await Promise.resolve();return previousMemoryId;
 }
 async function restorePreviousMemory(id){
  if(!id)return;
@@ -187,7 +190,12 @@ async function create(file){
  $('local-select').disabled=$('local-example').disabled=true;
  $('gpu-status').textContent='已选择照片，正在准备新记忆…';
  try{
- await flushPendingTicketSave();
+ // Close the preparation dialog before any IndexedDB or renderer work. Keeping
+ // it open can suspend Safari's animation loop and hide the real progress panel.
+ if(dialog.open)dialog.close();
+ // A stalled ticket write must never prevent a new photo from starting. It is
+ // flushed in the background and will be retried by the saver if needed.
+ void flushPendingTicketSave().catch(()=>{});
  if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
  const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
  dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
