@@ -1,7 +1,7 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
-import {memoryBox} from '../viewer-loader.js?v=mobile-20260922-2';
+import {memoryBox} from '../viewer-loader.js?v=mobile-20260922-3';
 import {normalizeSettings} from '../settings.js';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket,patchMetadata,modelSize} from './library.js';
@@ -107,13 +107,17 @@ async function show(record,reveal=false){
 const nextAnimationFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
 async function prepareMobileForNewCreation(){
  if(!mobile)return null;
- if(current?.model&&!savedIds.has(current.id)){notice('当前记忆尚未保存，请先保存设置或导出记忆后再新建。');sidebar(true);return false;}
- previousMemoryId=current&&savedIds.has(current.id)?current.id:null;
+ // Starting a new memory intentionally replaces the current one on mobile.
+ // Do not block on whether the previous result was saved or exported.
+ const discardedId=current?.model&&savedIds.has(current.id)?current.id:null;
+ previousMemoryId=null;
  urls.forEach(URL.revokeObjectURL);urls=[];$('photo-preview')?.removeAttribute('src');
  memoryBox.releaseLoadedMemory();
  if(worker||operation){clearTimeout(watchdog);watchdog=null;worker?.terminate();worker=null;cancelJob?.(Error('旧制作已结束'));cancelJob=null;operation=null;}
  memoryBox.setInferencePaused(false);memoryBox.setComputing(false);
- if(previousMemoryId===current?.id){const {id,name,created_at,ticket,exported_at}=current;current={id,name,created_at,ticket,exported_at};}
+ current=null;$('current-memory').hidden=true;$('library').value='';
+ retryPhoto=null;void draft(null).catch(()=>{});
+ if(discardedId){savedIds.delete(discardedId);dirtyIds.delete(discardedId);void remove(discardedId).catch(()=>{});}
  // iOS Safari can suspend requestAnimationFrame while a modal file picker/dialog
  // is active. The renderer cleanup above is synchronous, so do not wait on frames
  // before allowing the next generation to start.
