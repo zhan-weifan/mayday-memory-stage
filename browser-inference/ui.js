@@ -50,6 +50,23 @@ $('generation-cancel').onclick=()=>{if(busy)stop();else progressPanel.hidden=tru
 $('generation-retry').onclick=()=>{if(retryPhoto)create(retryPhoto);};
 function updateProgress(data){memoryBox.setGenerationProgress(data.phase==='download'&&data.total>0?data.loaded/data.total:null);progressPanel.hidden=false;$('generation-status').textContent=data.text;const bar=$('generation-bar');if(data.phase==='download'&&Number.isFinite(data.total)&&data.total>0){bar.value=Math.min(1,data.loaded/data.total);$('generation-detail').textContent=`${Math.floor(bar.value*100)}% · ${(data.loaded/1048576).toFixed(1)} / ${(data.total/1048576).toFixed(1)} MB · 照片未上传`;}else{bar.removeAttribute('value');$('generation-detail').textContent='照片留在本机 · 请保持页面打开';}}
 function notice(text=''){ $('notice').textContent=text;$('notice').hidden=!text;}
+const restorationPhases={card:0,projecting:1,generating:2,revealing:3,complete:4};
+function updateRestorationStep(){
+ const story=$('restoration-story');if(!story||story.hidden)return;
+ const index=restorationPhases[$('stage').dataset.creation];if(index===undefined)return;
+ [...$('restoration-steps').children].forEach((step,i)=>{step.dataset.state=i<index?'done':i===index?'active':'upcoming';if(i===index)step.setAttribute('aria-current','step');else step.removeAttribute('aria-current');});
+}
+function renderRestorationStory(restoration){
+ const story=$('restoration-story');if(!story)return;
+ story.hidden=!restoration;
+ if(!restoration)return;
+ $('restoration-eyebrow').textContent=restoration.eyebrow;
+ $('restoration-title').textContent=restoration.title;
+ $('restoration-caption').textContent=restoration.caption;
+ $('restoration-steps').replaceChildren(...restoration.steps.map((label,index)=>{const item=document.createElement('li');item.textContent=label;item.dataset.state=index?'upcoming':'active';if(!index)item.setAttribute('aria-current','step');return item;}));
+ updateRestorationStep();
+}
+new MutationObserver(updateRestorationStep).observe($('stage'),{attributes:true,attributeFilter:['data-creation']});
 const idbSaveFailureNames=new Set(['AbortError','ConstraintError','DataError','InvalidStateError','ReadOnlyError','TransactionInactiveError','VersionError']);
 function saveFailureMessage(error){
  if(error?.name==='QuotaExceededError')return '浏览器报告本机存储空间不足，无法保存到记忆库。';
@@ -95,7 +112,7 @@ async function refresh(){try{records=await list();records.forEach(r=>savedIds.ad
 async function show(record,reveal=false){
  await flushPendingTicketSave();
  memoryBox.setRecordSettings(record.settings);
- const token=++epoch;if(!reveal)memoryBox.cancelCreation();current=record;restoreTicket(record.ticket);document.querySelector('.first-visit').hidden=true;
+ const token=++epoch;if(!reveal)memoryBox.cancelCreation();current=record;restoreTicket(record.ticket);document.querySelector('.first-visit').hidden=true;renderRestorationStory(record.restoration);if(record.restoration)document.querySelector('.scene-heading h2').textContent=record.name;
  urls.forEach(URL.revokeObjectURL);urls=[];
  const photo=record.photo?URL.createObjectURL(record.photo):record.photo_url,model=record.model?URL.createObjectURL(new Blob([record.model])):record.model_url;if(record.photo)urls.push(photo);if(record.model)urls.push(model);
  $('current-memory').hidden=false;$('photo-preview').src=photo;$('memory-name').textContent=record.name;$('memory-date').textContent=new Date(record.created_at).toLocaleDateString('zh-CN');$('steps').hidden=true;$('retry').hidden=true;$('memory-actions').hidden=false;$('download-memory').hidden=!record.model;$('save-settings').textContent='保存设置到本机';$('library').value=record.id;for(const id of ['rename-memory','delete-memory'])$(id).hidden=!record.model;
@@ -181,7 +198,7 @@ async function loadExample(){
  if(!response.ok)throw Error('示例信息未能加载，请重试。');
  const record=await response.json();
  record.photo_url=new URL(record.photo_url,url).href;
- record.model_url=new URL(record.model_url,url).href;
+ record.model_url=new URL(mobile&&record.model_mobile_url?record.model_mobile_url:record.model_url,url).href;
  return record;
 }
 $('local-example').onclick=async()=>{try{const meta=await loadExample();const response=await fetch(meta.photo_url);if(!response.ok)throw Error('示例照片未能加载');const blob=await response.blob();dialog.close();await create(new File([blob],`${meta.name}.png`,{type:blob.type}));}catch(e){$('gpu-status').textContent=e.message;notice(e.message);if(!dialog.open)sidebar(true);}};
@@ -250,7 +267,7 @@ $('replay-creation').onclick=async()=>{if(busy||!current)return;lock(true);const
 
 window.addEventListener('beforeunload',e=>{if(busy||modelImport){e.preventDefault();e.returnValue='';}});
 for(const type of ['dragover','drop'])document.addEventListener(type,e=>e.preventDefault());document.addEventListener('drop',e=>{if(!busy){notice('请点击「新建记忆」检查设备后选择照片。');sidebar(true);}});
-const example=document.createElement('button');example.id='view-example';example.className='quiet';example.textContent='查看示例';$('library-section').before(example);example.onclick=async()=>{if(busy)return;const selection=++selectionEpoch;dialog.close();try{await flushPendingTicketSave();const demo=await loadExample();try{const saved=JSON.parse(localStorage.getItem(`still-demo-settings-${demo.id}`));if(saved)demo.settings=normalizeSettings(saved);}catch{/* Old or corrupt preferences must not block the built-in example. */}if(selection===selectionEpoch)await show(demo);}catch(e){notice(e.message);sidebar(true);}};
+const example=document.createElement('button');example.id='view-example';example.className='quiet';example.textContent='播放示例还原';$('library-section').before(example);example.onclick=async()=>{if(busy)return;const selection=++selectionEpoch;dialog.close();try{await flushPendingTicketSave();const demo=await loadExample();try{const saved=JSON.parse(localStorage.getItem(`still-demo-settings-${demo.id}`));if(saved)demo.settings=normalizeSettings(saved);}catch{/* Old or corrupt preferences must not block the built-in example. */}if(selection!==selectionEpoch)return;document.querySelector('.first-visit').hidden=true;markWelcomed();renderRestorationStory(demo.restoration);document.querySelector('.scene-heading h2').textContent=demo.name;const response=await fetch(demo.photo_url);if(!response.ok)throw Error('示例照片未能加载，请重试。');const photo=new File([await response.blob()],`${demo.name}.jpg`,{type:'image/jpeg'});await memoryBox.beginCreation(photo,demo.name);if(selection===selectionEpoch)await show(demo,true);}catch(e){if(selection===selectionEpoch){notice(e.message);sidebar(true);}}};
 async function boot(){document.querySelector('.format-note').textContent='照片留在本机 · JPG / PNG / WebP';$('creation').hidden=false;await refresh();status('等待收藏 · 新建记忆或打开已有记忆');const pending=await draft().catch(()=>null);if(pending?.photo){restoreTicket(pending.ticket);retryPhoto=new File([pending.photo],pending.name||'未完成的记忆.jpg',{type:pending.photo.type});updateProgress({text:'上一次任务未正常完成，可能与页面关闭、浏览器资源限制或其他运行中断有关。照片已保留，可手动重试。'});progressPanel.querySelector('strong').textContent='发现未完成的记忆';$('generation-bar').hidden=true;$('generation-retry').hidden=false;$('generation-cancel').textContent='关闭';}}
 export const ready=boot().catch(e=>{notice(e.message);sidebar(true);});
 
@@ -276,8 +293,8 @@ async function persistCurrent(record){
  if(savedIds.has(record.id)){const row=await patchMetadata(record.id,{name:record.name,ticket:record.ticket,settings:record.settings,exported_at:record.exported_at});if(!row)throw Error('这份记忆已在其他操作中删除');}
  else await save(record);
 }
-$('welcome-example').onclick=()=>example.click();$('welcome-create').onclick=()=>setup();
-const previewButton=document.createElement('button');previewButton.textContent='先看示例 · 无需模型';previewButton.type='button';previewButton.onclick=()=>example.click();$('gpu-status').after(previewButton);
+$('welcome-example').textContent='播放还原示例';$('welcome-example').onclick=()=>example.click();$('welcome-create').onclick=()=>setup();$('replay-restoration').onclick=()=>example.click();
+const previewButton=document.createElement('button');previewButton.textContent='播放还原示例 · 无需模型';previewButton.type='button';previewButton.onclick=()=>example.click();$('gpu-status').after(previewButton);
 const help=document.createElement('p');help.className='backup-help';help.textContent='保存设置：写入当前浏览器。导出备份：下载包含照片、3D 数据和票根的 .still 文件，可在其他设备打开。';$('memory-actions').append(help);
 const manage=document.createElement('div');manage.className='memory-management';manage.innerHTML='<button id="rename-memory">重命名</button><button id="delete-memory">删除记忆</button>';$('memory-actions').append(manage);
 $('rename-memory').onclick=async()=>{if(!current||busy)return;const record=current;await flushPendingTicketSave();const name=prompt('记忆名称',record.name);if(!name?.trim())return;record.name=name.trim().slice(0,60);record.exported_at=null;dirtyIds.add(record.id);try{if(record.model){await persistCurrent(record);savedIds.add(record.id);dirtyIds.delete(record.id);}if(current===record)$('memory-name').textContent=record.name;await refresh();}catch{status('修改尚未保存，请立即导出');notice('重命名未保存，请导出备份。');}};
