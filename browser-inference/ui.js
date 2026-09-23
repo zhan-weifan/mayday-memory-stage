@@ -198,7 +198,7 @@ async function loadExample(){
  if(!response.ok)throw Error('示例信息未能加载，请重试。');
  const record=await response.json();
  record.photo_url=new URL(record.photo_url,url).href;
- record.model_url=new URL(mobile&&record.model_mobile_url?record.model_mobile_url:record.model_url,url).href;
+ record.model_url=new URL(record.model_url,url).href;
  return record;
 }
 $('local-example').onclick=async()=>{try{const meta=await loadExample();const response=await fetch(meta.photo_url);if(!response.ok)throw Error('示例照片未能加载');const blob=await response.blob();dialog.close();await create(new File([blob],`${meta.name}.png`,{type:blob.type}));}catch(e){$('gpu-status').textContent=e.message;notice(e.message);if(!dialog.open)sidebar(true);}};

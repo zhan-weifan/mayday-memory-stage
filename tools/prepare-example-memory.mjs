@@ -34,23 +34,14 @@ const alignedModel = model.buffer.slice(model.byteOffset, model.byteOffset + mod
 const values = new Float32Array(alignedModel);
 for (const value of values) if (!Number.isFinite(value)) throw Error('记忆模型包含非有限数值。');
 const count = values.length / 16;
-const mobileCount = Math.min(count, 65536);
-const mobileValues = new Float32Array(mobileCount * 16);
-for (let out = 0; out < mobileCount; out++) {
-  const input = Math.floor((out + 0.5) * count / mobileCount);
-  mobileValues.set(values.subarray(input * 16, input * 16 + 16), out * 16);
-}
 
 await Promise.all([
   writeFile(resolve(root, 'demo.jpg'), photo),
-  writeFile(resolve(root, 'demo.memorygs'), model),
-  writeFile(resolve(root, 'demo-mobile.memorygs'), Buffer.from(mobileValues.buffer))
+  writeFile(resolve(root, 'demo.memorygs'), model)
 ]);
 console.log(JSON.stringify({
   source: sourcePath,
   photoBytes: photo.length,
-  desktopModelBytes: model.length,
-  desktopPoints: count,
-  mobileModelBytes: mobileValues.byteLength,
-  mobilePoints: mobileCount
+  modelBytes: model.length,
+  modelPoints: count
 }, null, 2));
