@@ -3,7 +3,7 @@ import {showAppError,clearAppError} from './ui-shell.js';
 let instance=null,pending=null,settings=normalizeSettings(),displayed=false,ticket=null,loadToken=0,computeOnly=false;
 export async function ensureViewer(){
  if(instance)return instance;
- if(!pending)pending=import('./main.js?v=serial-mobile-20260925-1').then(module=>module.initViewer()).then(viewer=>{instance=viewer;if(ticket)viewer.setTicket(...ticket);viewer.setComputeOnly(computeOnly);return viewer;}).catch(error=>{pending=null;showAppError(error,async()=>{await ensureViewer();document.dispatchEvent(new Event('viewer-retry'));},'3D 查看器');throw error;});
+ if(!pending)pending=import('./main.js?v=low-performance-20260925-1').then(module=>module.initViewer()).then(viewer=>{instance=viewer;if(ticket)viewer.setTicket(...ticket);viewer.setComputeOnly(computeOnly);return viewer;}).catch(error=>{pending=null;showAppError(error,async()=>{await ensureViewer();document.dispatchEvent(new Event('viewer-retry'));},'3D 查看器');throw error;});
  return pending;
 }
 export const memoryBox={

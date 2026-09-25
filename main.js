@@ -46,7 +46,7 @@ scope.listen(verticalScroll,'scroll',()=>{
  setCamera();
 },{passive:true});
 const mobile=constrainedDevice();let computing=false;let inferencePaused=false;let computeOnly=false;let frozenPreview=null;
-let quality=mobile?'smooth':'high';try{const saved=localStorage.getItem('palinode-quality');if(['battery','smooth','high'].includes(saved))quality=saved;}catch{}
+let quality=mobile?'smooth':'high';try{const lowPerformance=localStorage.getItem('still-low-performance-mode')==='1',saved=localStorage.getItem('palinode-quality');if(lowPerformance)quality='battery';else if(['battery','smooth','high'].includes(saved))quality=saved;}catch{}
 let interactionUntil=0,lastInteractionAt=performance.now();for(const type of ['pointerdown','pointermove','wheel','input','click'])scope.listen(document,type,()=>{lastInteractionAt=performance.now();interactionUntil=lastInteractionAt+1200;},{passive:true});
 stage.style.touchAction='none';
 const renderer=scope.own(new THREE.WebGLRenderer({antialias:!mobile,preserveDrawingBuffer:true,powerPreference:mobile?'low-power':'high-performance'}));

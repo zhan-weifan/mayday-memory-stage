@@ -43,7 +43,7 @@ test('worker forwards the selected profile, releases sessions, and never silentl
   assert.equal(released,2);assert.equal(messages.filter(m=>m.type==='complete').length,2);
   fail=true;await run(true);
   assert.equal(sessions.length,3,'failed initialization must not trigger another large allocation');
-  assert.match(messages.at(-1).text,/关闭“精简初始化”/);
+  assert.match(messages.at(-1).text,/关闭“低性能模式”/);
   fail=false;await run(false);assert.equal(messages.at(-1).type,'complete');
 });
 

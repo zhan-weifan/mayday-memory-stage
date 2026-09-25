@@ -26,5 +26,5 @@ self.onmessage=async({data})=>{
  status('正在用手机 CPU 构筑空间，可能需要数分钟','inference');outputs=await session.run(feeds);
  Object.values(feeds).forEach(t=>t.dispose());feeds=null;await session.release();session=null;
  status('正在整理空间与粒子','packing');const buffer=prepare(outputs,prepared.width,prepared.height,focal,32768,128);Object.values(outputs).forEach(t=>t.dispose());outputs=null;postMessage({type:'complete',buffer},[buffer]);
- }catch(e){const advice=initializing&&data.lowMemoryInitialization===true?'。可关闭“精简初始化”后手动重试。':'';postMessage({type:'error',text:String(e.message||e)+advice});}finally{Object.values(feeds||{}).forEach(t=>t.dispose());Object.values(outputs||{}).forEach(t=>t.dispose());await session?.release();busy=false;}
+ }catch(e){const advice=initializing&&data.lowMemoryInitialization===true?'。可关闭“低性能模式”后手动重试。':'';postMessage({type:'error',text:String(e.message||e)+advice});}finally{Object.values(feeds||{}).forEach(t=>t.dispose());Object.values(outputs||{}).forEach(t=>t.dispose());await session?.release();busy=false;}
 };

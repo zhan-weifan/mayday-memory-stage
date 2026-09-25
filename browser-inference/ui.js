@@ -1,7 +1,7 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
-import {memoryBox} from '../viewer-loader.js?v=serial-mobile-20260925-2';
+import {memoryBox} from '../viewer-loader.js?v=low-performance-20260925-1';
 import {normalizeSettings} from '../settings.js';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket,patchMetadata,modelSize} from './library.js';
@@ -10,7 +10,7 @@ import {constrainedDevice,displayPolicy,executionCapabilities} from '../device-c
 import {createTicketSaver} from './ticket-save.js';
 const $=id=>document.getElementById(id);let selectionEpoch=0;let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
 let mobile=constrainedDevice();
-let workerURL=new URL(mobile?'./mobile-worker.js?v=lean-init-20260925-1':'./worker.js?v=decode-1',import.meta.url);
+let workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-1':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
@@ -147,16 +147,31 @@ async function restorePreviousMemory(id){
  catch{notice('上一份记忆恢复失败，请从收藏库重新打开。');await refresh().catch(()=>{});}
  if(previousMemoryId===id)previousMemoryId=null;
 }
-const dialog=document.createElement('dialog');dialog.className='local-generation';dialog.innerHTML=`<form method="dialog"><button class="dialog-close" aria-label="关闭制作说明">×</button></form><p class="eyebrow">MADE ON YOUR DEVICE</p><h2>在这里，留住一刻。</h2><p id="model-description">照片与生成过程留在你的设备。首次需下载约 1.31 GB 模型，优先镜像线路，失败自动切换；之后优先使用本机缓存。</p><aside id="mobile-generation-advice" hidden style="margin:18px 0;padding:14px 16px;background:#edf0e8;border-radius:10px;font-size:13px;line-height:1.7"><strong>制作前的小提醒</strong><br>手机建议使用 Google Chrome 浏览器。<br>想获得更好的效果，优先使用电脑版：电脑版使用完整模型，画面细节更丰富；手机版使用轻量模型。</aside><p id="gpu-status" role="status">正在检测设备…</p><fieldset id="mobile-generation-mode" hidden style="margin:14px 0;padding:12px 14px;border:1px solid #d8ded9;border-radius:10px;line-height:1.6"><legend style="padding:0 6px;font-size:13px">制作顺序</legend><label style="display:block;margin:6px 0"><input type="radio" name="mobile-generation-mode" value="sequential" checked> 先计算完成，再播放动效（推荐）</label><label style="display:block;margin:6px 0"><input type="radio" name="mobile-generation-mode" value="parallel"> 边计算边播放动效</label><small style="display:block;margin-top:8px">先计算模式会在推理期间暂停舞台与动效，保存记忆文件后再播放。它能减少同时运行的页面任务，但模型本身仍会占用内存。</small></fieldset><button id="local-select" class="primary" disabled>选择照片并制作</button><button id="local-example" disabled>用示例风景试一试 ↗</button><small id="generation-explanation">请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。<br>本机保存可能被浏览器清理，重要记忆请导出备份。</small><p id="storage-status" role="status" aria-live="polite" hidden style="font-size:13px;line-height:1.7;margin:12px 0">正在读取浏览器可用存储额度估算…</p><details><summary>模型与缓存</summary><p>SHARP 的浏览器格式转换版本，用于非商业研究实验。<a href="./browser-inference/licenses/APPLE-SHARP.txt" target="_blank" rel="noopener">模型许可</a> · <a href="./browser-inference/licenses/NOTICE.txt" target="_blank" rel="noopener">来源与修改说明</a></p><button id="clear-model">清除本机模型缓存</button></details>`;document.body.append(dialog);const generationModeInputs=[...dialog.querySelectorAll('input[name="mobile-generation-mode"]')];
-try{if(localStorage.getItem('still-mobile-generation-mode')==='parallel')generationModeInputs.find(input=>input.value==='parallel').checked=true;}catch{}
-generationModeInputs.forEach(input=>input.addEventListener('change',()=>{try{localStorage.setItem('still-mobile-generation-mode',input.value);}catch{}}));
-function sequentialMobileGeneration(){return dialog.querySelector('input[name="mobile-generation-mode"]:checked')?.value!=='parallel';}
-const initializationSection=document.createElement('section');initializationSection.id='mobile-initialization-mode';initializationSection.hidden=true;
-initializationSection.style.cssText='margin:14px 0;padding:12px 14px;border:1px solid #d8ded9;border-radius:10px';
-initializationSection.innerHTML='<label style="margin:0;min-height:44px;display:flex;align-items:center;gap:8px"><input id="low-memory-initialization" type="checkbox" role="switch" aria-describedby="initialization-help">精简初始化（实验）</label><small id="initialization-help">尝试减少模型初始化时的额外开销。可能计算更慢或不兼容，不保证避免刷新。关闭可恢复标准方式；下次制作生效。</small>';
-$('local-select').before(initializationSection);
-try{$('low-memory-initialization').checked=localStorage.getItem('still-low-memory-initialization')==='1';}catch{}
-$('low-memory-initialization').addEventListener('change',event=>{try{localStorage.setItem('still-low-memory-initialization',event.target.checked?'1':'0');}catch{}});
+const dialog=document.createElement('dialog');dialog.className='local-generation';dialog.innerHTML=`<form method="dialog"><button class="dialog-close" aria-label="关闭制作说明">×</button></form><p class="eyebrow">MADE ON YOUR DEVICE</p><h2>在这里，留住一刻。</h2><p id="model-description">照片与生成过程留在你的设备。首次需下载约 1.31 GB 模型，优先镜像线路，失败自动切换；之后优先使用本机缓存。</p><aside id="mobile-generation-advice" hidden style="margin:18px 0;padding:14px 16px;background:#edf0e8;border-radius:10px;font-size:13px;line-height:1.7"><strong>制作前的小提醒</strong><br>手机建议使用 Google Chrome 浏览器。<br>想获得更好的效果，优先使用电脑版：电脑版使用完整模型，画面细节更丰富；手机版使用轻量模型。</aside><p id="gpu-status" role="status">正在检测设备…</p><button id="local-select" class="primary" disabled>选择照片并制作</button><button id="local-example" disabled>用示例风景试一试 ↗</button><small id="generation-explanation">请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。<br>本机保存可能被浏览器清理，重要记忆请导出备份。</small><p id="storage-status" role="status" aria-live="polite" hidden style="font-size:13px;line-height:1.7;margin:12px 0">正在读取浏览器可用存储额度估算…</p><details><summary>模型与缓存</summary><p>SHARP 的浏览器格式转换版本，用于非商业研究实验。<a href="./browser-inference/licenses/APPLE-SHARP.txt" target="_blank" rel="noopener">模型许可</a> · <a href="./browser-inference/licenses/NOTICE.txt" target="_blank" rel="noopener">来源与修改说明</a></p><button id="clear-model">清除本机模型缓存</button></details>`;document.body.append(dialog);const lowPerformanceSection=document.createElement('section');lowPerformanceSection.id='low-performance-mode-section';lowPerformanceSection.hidden=true;
+lowPerformanceSection.style.cssText='margin:14px 0;padding:12px 14px;border:1px solid #d8ded9;border-radius:10px;line-height:1.6';
+lowPerformanceSection.innerHTML='<label style="display:flex;align-items:center;gap:8px;min-height:44px"><input id="low-performance-mode" type="checkbox" role="switch" aria-describedby="low-performance-help">低性能模式</label><small id="low-performance-help">开启后先完成记忆计算再播放动效，尝试精简 CPU 初始化，并将舞台画质切到省电。生成可能更慢，仍受手机和浏览器资源限制。关闭后恢复常规制作和原画质。</small>';
+$('local-select').before(lowPerformanceSection);
+const lowPerformanceToggle=$('low-performance-mode');
+const lowPerformanceQualityKey='still-low-performance-previous-quality';
+const validRenderQuality=value=>['battery','smooth','high'].includes(value);
+function preferredRenderQuality(){try{const saved=localStorage.getItem('palinode-quality');if(validRenderQuality(saved))return saved;}catch{}const select=$('render-quality');return window.__prismatic?.ready&&validRenderQuality(select?.value)?select.value:mobile?'smooth':'high';}
+function setLowPerformanceMode(enabled,rememberQuality=false){
+ const select=$('render-quality');
+ if(enabled){
+  if(rememberQuality){try{localStorage.setItem(lowPerformanceQualityKey,preferredRenderQuality());}catch{}}
+  try{localStorage.setItem('still-low-performance-mode','1');localStorage.setItem('palinode-quality','battery');}catch{}
+  lowPerformanceToggle.checked=true;
+  if(select){select.value='battery';select.disabled=true;select.dispatchEvent(new Event('change',{bubbles:true}));}
+  return;
+ }
+ let restored=mobile?'smooth':'high';
+ try{const previous=localStorage.getItem(lowPerformanceQualityKey);if(validRenderQuality(previous))restored=previous;localStorage.setItem('still-low-performance-mode','0');localStorage.setItem('palinode-quality',restored);localStorage.removeItem(lowPerformanceQualityKey);}catch{}
+ lowPerformanceToggle.checked=false;
+ if(select){select.disabled=false;select.value=restored;select.dispatchEvent(new Event('change',{bubbles:true}));}
+}
+try{lowPerformanceToggle.checked=localStorage.getItem('still-low-performance-mode')==='1';}catch{}
+if(lowPerformanceToggle.checked)setLowPerformanceMode(true);
+lowPerformanceToggle.addEventListener('change',()=>setLowPerformanceMode(lowPerformanceToggle.checked,true));
 if(!mobile){$('model-description').textContent='完整模型约 1.31 GB，将保存在当前浏览器的网站数据中，不会进入 Windows“下载”文件夹。保存成功后，下次使用同一浏览器打开同一网址时会优先直接使用。';$('generation-explanation').textContent='请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。模型保存在当前浏览器的网站数据中，浏览器仍可能清理它；重要记忆请导出备份。';}
 const modelInput=document.createElement('input');modelInput.type='file';modelInput.accept='.gemosmodel';modelInput.hidden=true;dialog.append(modelInput);
 const modelSection=document.createElement('section');modelSection.hidden=!mobile;modelSection.style.cssText='margin:20px 0;padding:16px;background:#f2f3ef;border-radius:12px;line-height:1.7';modelSection.innerHTML=`<button id="import-lite-model" type="button" style="width:100%;min-height:44px;border:1px solid #b9bdb1;border-radius:8px;font-size:14px">导入轻量模型包</button><p style="font-size:13px;margin:8px 0">可选：如果你已有 APK 的模型包，可以导入以节省下载。下载源通过检查后才能自动下载；也可直接导入模型包。</p><a style="font-size:13px;color:inherit;text-underline-offset:4px" href="https://github.com/duoduoaiduoduo/gemos-still/releases/download/android-v0.4.0-lite/Gemos-Still-Lite-256.gemosmodel" target="_blank" rel="noopener">下载轻量模型包（${mobileModelSize}） ↗</a><progress id="model-import-progress" max="1" hidden style="width:100%"></progress>`;dialog.querySelector('details').append(modelSection);void updateStorageStatus();
@@ -181,13 +196,13 @@ async function setup(){
  sidebar(false);if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();$('gpu-status').textContent='正在检测运行能力…';
  const capabilities=await executionCapabilities();
  mobile=constrainedDevice()||!capabilities.fp16;
- workerURL=new URL(mobile?'./mobile-worker.js?v=lean-init-20260925-1':'./worker.js?v=decode-1',import.meta.url);
+ workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-1':'./worker.js?v=decode-1',import.meta.url);
  modelSection.hidden=!mobile;
- initializationSection.hidden=!mobile;
+ lowPerformanceSection.hidden=!mobile;
  if(mobile){$('model-description').textContent='本机使用 Lite 模型，首次约 '+mobileModelSize+'。下载和校验成功不代表设备一定能完成运行。';$('generation-explanation').textContent='请保持页面打开。执行结果取决于浏览器运行能力和可用资源；重要记忆请导出备份。';}
  if(!capabilities.worker||!capabilities.wasm){if(!dialog.open)dialog.showModal();$('gpu-status').textContent='当前浏览器无法执行本机模型；仍可导入和管理记忆文件。';return;}
  if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();
- if(mobile){void updateStorageStatus();$('mobile-generation-advice').hidden=false;$('mobile-generation-mode').hidden=false;$('local-select').textContent='选择照片 · 轻量制作';$('gpu-status').textContent='正在检查本机模型…';$('local-select').disabled=$('local-example').disabled=true;try{await probeWorker();deviceReady=true;if(!modelImport){if(mobileReady){$('gpu-status').textContent='轻量模型已就绪 · 使用本机 CPU';readyControls();void requestPersistentStorage();}else await verifySource();}}catch(e){$('gpu-status').textContent=e.message;}return;}
+ if(mobile){void updateStorageStatus();$('mobile-generation-advice').hidden=false;$('local-select').textContent='选择照片 · 轻量制作';$('gpu-status').textContent='正在检查本机模型…';$('local-select').disabled=$('local-example').disabled=true;try{await probeWorker();deviceReady=true;if(!modelImport){if(mobileReady){$('gpu-status').textContent='轻量模型已就绪 · 使用本机 CPU';readyControls();void requestPersistentStorage();}else await verifySource();}}catch(e){$('gpu-status').textContent=e.message;}return;}
  $('local-select').disabled=$('local-example').disabled=true;
  try{const cache=await prepareDesktopStorage();$('gpu-status').textContent=cache.ready?'✓ 已找到本机完整模型，无需重新下载。':'存储检查通过 · 首次需下载约 '+desktopModelSize()+' 完整模型';}
  catch(e){showDesktopStorage(null,e);$('gpu-status').textContent=e.message;}
@@ -228,8 +243,9 @@ async function create(file){
  // flushed in the background and will be retried by the saver if needed.
  void flushPendingTicketSave().catch(()=>{});
  if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
-  const sequentialGeneration=mobile&&sequentialMobileGeneration();
-  const lowMemoryInitialization=mobile&&$('low-memory-initialization').checked;
+  const lowPerformance=mobile&&lowPerformanceToggle.checked;
+  const sequentialGeneration=lowPerformance;
+  const lowMemoryInitialization=lowPerformance;
   const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
   dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});if(sequentialGeneration)memoryBox.setComputeOnly(true);memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
  let arrived=false,lastStatus='正在准备本机模型';
