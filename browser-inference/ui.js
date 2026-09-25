@@ -1,7 +1,7 @@
 import {preparePhoto} from './photo.js?v=lite-1';
 import {DEFAULT_LITE_BASE,normalizeModelBase,checkModelSource} from './model-source.js?v=usability-20260916-2';
 import {inspectDesktopCache,requestDesktopPersistence} from './download.js?v=desktop-cache-20260916';
-import {memoryBox} from '../viewer-loader.js?v=low-performance-20260925-1';
+import {memoryBox} from '../viewer-loader.js?v=low-performance-20260925-2';
 import {normalizeSettings} from '../settings.js';
 import {FILES} from './mobile-model.js';
 import {save,list,get,draft,pack,unpack,remove,normalizeTicket,patchMetadata,modelSize} from './library.js';
@@ -10,7 +10,7 @@ import {constrainedDevice,displayPolicy,executionCapabilities} from '../device-c
 import {createTicketSaver} from './ticket-save.js';
 const $=id=>document.getElementById(id);let selectionEpoch=0;let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
 let mobile=constrainedDevice();
-let workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-1':'./worker.js?v=decode-1',import.meta.url);
+let workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-2':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
@@ -149,7 +149,7 @@ async function restorePreviousMemory(id){
 }
 const dialog=document.createElement('dialog');dialog.className='local-generation';dialog.innerHTML=`<form method="dialog"><button class="dialog-close" aria-label="关闭制作说明">×</button></form><p class="eyebrow">MADE ON YOUR DEVICE</p><h2>在这里，留住一刻。</h2><p id="model-description">照片与生成过程留在你的设备。首次需下载约 1.31 GB 模型，优先镜像线路，失败自动切换；之后优先使用本机缓存。</p><aside id="mobile-generation-advice" hidden style="margin:18px 0;padding:14px 16px;background:#edf0e8;border-radius:10px;font-size:13px;line-height:1.7"><strong>制作前的小提醒</strong><br>手机建议使用 Google Chrome 浏览器。<br>想获得更好的效果，优先使用电脑版：电脑版使用完整模型，画面细节更丰富；手机版使用轻量模型。</aside><p id="gpu-status" role="status">正在检测设备…</p><button id="local-select" class="primary" disabled>选择照片并制作</button><button id="local-example" disabled>用示例风景试一试 ↗</button><small id="generation-explanation">请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。<br>本机保存可能被浏览器清理，重要记忆请导出备份。</small><p id="storage-status" role="status" aria-live="polite" hidden style="font-size:13px;line-height:1.7;margin:12px 0">正在读取浏览器可用存储额度估算…</p><details><summary>模型与缓存</summary><p>SHARP 的浏览器格式转换版本，用于非商业研究实验。<a href="./browser-inference/licenses/APPLE-SHARP.txt" target="_blank" rel="noopener">模型许可</a> · <a href="./browser-inference/licenses/NOTICE.txt" target="_blank" rel="noopener">来源与修改说明</a></p><button id="clear-model">清除本机模型缓存</button></details>`;document.body.append(dialog);const lowPerformanceSection=document.createElement('section');lowPerformanceSection.id='low-performance-mode-section';lowPerformanceSection.hidden=true;
 lowPerformanceSection.style.cssText='margin:14px 0;padding:12px 14px;border:1px solid #d8ded9;border-radius:10px;line-height:1.6';
-lowPerformanceSection.innerHTML='<label style="display:flex;align-items:center;gap:8px;min-height:44px"><input id="low-performance-mode" type="checkbox" role="switch" aria-describedby="low-performance-help">低性能模式</label><small id="low-performance-help">开启后先完成记忆计算再播放动效，尝试精简 CPU 初始化，并将舞台画质切到省电。生成可能更慢，仍受手机和浏览器资源限制。关闭后恢复常规制作和原画质。</small>';
+lowPerformanceSection.innerHTML='<label style="display:flex;align-items:center;gap:8px;min-height:44px"><input id="low-performance-mode" type="checkbox" role="switch" aria-describedby="low-performance-help">低性能模式</label><small id="low-performance-help">开启后先完成记忆计算再播放动效，使用标准模型初始化，并将舞台画质切到省电。生成可能更慢，仍受手机和浏览器资源限制。关闭后恢复常规制作和原画质。</small>';
 $('local-select').before(lowPerformanceSection);
 const lowPerformanceToggle=$('low-performance-mode');
 const lowPerformanceQualityKey='still-low-performance-previous-quality';
@@ -196,7 +196,7 @@ async function setup(){
  sidebar(false);if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();$('gpu-status').textContent='正在检测运行能力…';
  const capabilities=await executionCapabilities();
  mobile=constrainedDevice()||!capabilities.fp16;
- workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-1':'./worker.js?v=decode-1',import.meta.url);
+ workerURL=new URL(mobile?'./mobile-worker.js?v=low-performance-20260925-2':'./worker.js?v=decode-1',import.meta.url);
  modelSection.hidden=!mobile;
  lowPerformanceSection.hidden=!mobile;
  if(mobile){$('model-description').textContent='本机使用 Lite 模型，首次约 '+mobileModelSize+'。下载和校验成功不代表设备一定能完成运行。';$('generation-explanation').textContent='请保持页面打开。执行结果取决于浏览器运行能力和可用资源；重要记忆请导出备份。';}
@@ -245,7 +245,6 @@ async function create(file){
  if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
   const lowPerformance=mobile&&lowPerformanceToggle.checked;
   const sequentialGeneration=lowPerformance;
-  const lowMemoryInitialization=lowPerformance;
   const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
   dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});if(sequentialGeneration)memoryBox.setComputeOnly(true);memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
  let arrived=false,lastStatus='正在准备本机模型';
@@ -257,7 +256,7 @@ async function create(file){
   if(!sequentialGeneration)arrival=Promise.resolve().then(()=>memoryBox.beginCreation(file,file.name.replace(/\.[^.]+$/,''))).then(()=>{arrived=true;if(token===epoch)memoryBox.waiting(lastStatus);});
  runningWorker=new Worker(workerURL,{type:'module'});worker=runningWorker;
   const result=new Promise((resolve,reject)=>{cancelJob=reject;const arm=(ms,text)=>{clearTimeout(watchdog);watchdog=setTimeout(()=>reject(Error(text)),ms);};arm(30000,'本机任务没有启动响应，请更新浏览器并刷新重试');runningWorker.onmessage=({data})=>{if(token!==epoch)return;if(data.type==='status'){if(!sequentialGeneration&&['initializing','inference','packing'].includes(data.phase))memoryBox.setInferencePaused(true);arm(['initializing','inference'].includes(data.phase)?(mobile?900000:300000):60000,'当前步骤长时间没有响应：'+data.text+'。请重试；若再次失败，请提供手机型号和浏览器。');lastStatus=data.text;updateProgress(data);status(data.text);if(arrived)memoryBox.waiting(data.text);}else if(data.type==='complete')resolve(data.buffer);else if(data.type==='error')reject(Error(data.text));};runningWorker.onerror=()=>reject(Error('后台任务意外中断，原因尚无法确认。已有记忆仍可管理。'));});
- runningWorker.postMessage({prepared,...(mobile?{file:mobileModelFile,modelBase,lowMemoryInitialization}:{})},[prepared.pixels.buffer]);
+ runningWorker.postMessage({prepared,...(mobile?{file:mobileModelFile,modelBase}:{})},[prepared.pixels.buffer]);
   const buffer=await result;runningWorker.terminate();worker=null;if(!sequentialGeneration)memoryBox.setInferencePaused(false);void requestPersistentStorage();if(token!==epoch)return;
  const record={id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,'').slice(0,60)||'一段记忆',created_at:new Date().toISOString(),photo:file,model:buffer,settings:{designVersion:2,depthVolume:1},ticket:readTicket()};
  let saveError=null;try{await save(record);savedIds.add(record.id);void requestPersistentStorage();}catch(e){saveError=e;}

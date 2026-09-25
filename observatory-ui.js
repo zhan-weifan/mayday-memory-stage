@@ -1,4 +1,4 @@
-import {memoryBox} from './viewer-loader.js?v=low-performance-20260925-1';
+import {memoryBox} from './viewer-loader.js?v=low-performance-20260925-2';
 
 const $=id=>document.getElementById(id);
 const views=document.createElement('div');views.className='arena-views';
