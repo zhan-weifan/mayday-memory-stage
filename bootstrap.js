@@ -5,9 +5,9 @@ let pendingEntry=null;
 export function loadApp(){
  if(!appPromise)appPromise=(async()=>{
   initShell();
-  const ui=await import('./browser-inference/ui.js?v=serial-mobile-20260925-1');
+  const ui=await import('./browser-inference/ui.js?v=serial-mobile-20260925-2');
   await ui.ready;
-  for(const path of ['./film.js?v=mobile-20260922-3','./observatory-ui.js?v=mobile-20260922-3'])import(path).catch(error=>showAppError(error,()=>import(path),'附加界面'));
+  for(const path of ['./film.js?v=serial-mobile-20260925-2','./observatory-ui.js?v=serial-mobile-20260925-2'])import(path).catch(error=>showAppError(error,()=>import(path),'附加界面'));
   return ui;
  })().catch(error=>{appPromise=null;showAppError(error,loadApp);throw error;});
  return appPromise;
@@ -21,4 +21,4 @@ for(const button of entries)button.addEventListener('click',intercept,true);
 try{initShell();}catch(error){showAppError(error,loadApp,'基础界面');}
 void loadApp().catch(()=>{});
 // Start the empty stage on entry, independently of model downloads and library I/O.
-void import('./viewer-loader.js?v=serial-mobile-20260925-1').then(({ensureViewer})=>ensureViewer()).catch(()=>{});
+void import('./viewer-loader.js?v=serial-mobile-20260925-2').then(({ensureViewer})=>ensureViewer()).catch(()=>{});

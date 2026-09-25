@@ -1,4 +1,4 @@
-import {memoryBox} from './viewer-loader.js?v=mobile-20260922-3';
+import {memoryBox} from './viewer-loader.js?v=serial-mobile-20260925-2';
 
 const $=id=>document.getElementById(id);
 const views=document.createElement('div');views.className='arena-views';

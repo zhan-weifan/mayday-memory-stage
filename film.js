@@ -1,5 +1,5 @@
 import {constrainedDevice} from './device-capabilities.js';
-import {memoryBox} from './viewer-loader.js?v=mobile-20260922-3';
+import {memoryBox} from './viewer-loader.js?v=serial-mobile-20260925-2';
 import {drawFilmOutro} from './film-outro.js';
 import {createFilmScore} from './film-score.js?v=piano-20260913-1';
 import {FILM,EXPORT_PRESETS,exportSettings} from './film-timeline.js?v=repair-v2';
