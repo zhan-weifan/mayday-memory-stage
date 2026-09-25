@@ -1,9 +1,9 @@
 import {normalizeSettings,CONTROL_SETTINGS} from './settings.js';
 import {showAppError,clearAppError} from './ui-shell.js';
-let instance=null,pending=null,settings=normalizeSettings(),displayed=false,ticket=null,loadToken=0;
+let instance=null,pending=null,settings=normalizeSettings(),displayed=false,ticket=null,loadToken=0,computeOnly=false;
 export async function ensureViewer(){
  if(instance)return instance;
- if(!pending)pending=import('./main.js?v=mobile-20260922-3').then(module=>module.initViewer()).then(viewer=>{instance=viewer;if(ticket)viewer.setTicket(...ticket);return viewer;}).catch(error=>{pending=null;showAppError(error,async()=>{await ensureViewer();document.dispatchEvent(new Event('viewer-retry'));},'3D 查看器');throw error;});
+ if(!pending)pending=import('./main.js?v=serial-mobile-20260925-1').then(module=>module.initViewer()).then(viewer=>{instance=viewer;if(ticket)viewer.setTicket(...ticket);viewer.setComputeOnly(computeOnly);return viewer;}).catch(error=>{pending=null;showAppError(error,async()=>{await ensureViewer();document.dispatchEvent(new Event('viewer-retry'));},'3D 查看器');throw error;});
  return pending;
 }
 export const memoryBox={
@@ -11,6 +11,7 @@ export const memoryBox={
   for(const [key,rule] of Object.entries(CONTROL_SETTINGS)){const node=document.getElementById(rule.id);node.value=settings[key];const output=document.getElementById(rule.id+'Value');if(output)output.textContent=['contentScale','depthVolume'].includes(key)?Math.round(settings[key]*100)+'%':settings[key].toFixed(2);}
   for(const fit of ['cover','contain'])document.getElementById('fit-'+fit).setAttribute('aria-pressed',String(settings.fit===fit));
  },
+ setComputeOnly(value){computeOnly=!!value;instance?.setComputeOnly(computeOnly);},
  async load(...args){const token=++loadToken;const viewer=await ensureViewer();if(token!==loadToken)return;await viewer.load(...args);if(token===loadToken){displayed=true;clearAppError();}},
  async beginCreation(...args){const token=++loadToken;try{const viewer=await ensureViewer();if(token!==loadToken)return;return await viewer.beginCreation(...args);}catch{ /* Data generation does not require the optional ceremony. */ }},
  async beginFilm(...args){if(!displayed)throw Error('请先成功打开一份可显示的 3D 记忆');return (await ensureViewer()).beginFilm(...args);},

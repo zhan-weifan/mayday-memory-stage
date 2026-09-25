@@ -45,7 +45,7 @@ scope.listen(verticalScroll,'scroll',()=>{
  verticalPosition=verticalScroll.scrollTop/range;
  setCamera();
 },{passive:true});
-const mobile=constrainedDevice();let computing=false;let inferencePaused=false;let frozenPreview=null;
+const mobile=constrainedDevice();let computing=false;let inferencePaused=false;let computeOnly=false;let frozenPreview=null;
 let quality=mobile?'smooth':'high';try{const saved=localStorage.getItem('palinode-quality');if(['battery','smooth','high'].includes(saved))quality=saved;}catch{}
 let interactionUntil=0,lastInteractionAt=performance.now();for(const type of ['pointerdown','pointermove','wheel','input','click'])scope.listen(document,type,()=>{lastInteractionAt=performance.now();interactionUntil=lastInteractionAt+1200;},{passive:true});
 stage.style.touchAction='none';
@@ -181,12 +181,12 @@ ao._overrideVisibility=()=>{originalOverride();scene.traverse(o=>{if(o.visible&&
 composer.addPass(ao);}
 composer.addPass(scope.own(new OutputPass()));
 stage.dataset.lighting="realtime";
-function resize(){if(filming||inferencePaused)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=quality==='battery'?Math.min(devicePixelRatio,1,Math.sqrt(700000/(w*h))):quality==='smooth'?Math.min(devicePixelRatio,computing?1:1.5,Math.sqrt(1500000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
+function resize(){if(filming||inferencePaused||computeOnly)return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const ratio=quality==='battery'?Math.min(devicePixelRatio,1,Math.sqrt(700000/(w*h))):quality==='smooth'?Math.min(devicePixelRatio,computing?1:1.5,Math.sqrt(1500000/(w*h))):Math.min(2.5,Math.max(devicePixelRatio,1.5),Math.sqrt(5000000/(w*h)));if(renderer.getPixelRatio()!==ratio){renderer.setPixelRatio(ratio);composer.setPixelRatio(ratio);}renderer.setSize(w,h);renderer.getDrawingBufferSize(displaySize);innerRT.setSize(displaySize.x,displaySize.y);for(const rt of [blurA,blurB])rt.setSize(Math.max(1,Math.round(displaySize.x*(mobile?.5:1))),Math.max(1,Math.round(displaySize.y*(mobile?.5:1))));composer.setSize(w,h);camera.aspect=w/h;setCamera();}
 scope.observe(stage,resize);scope.listen(window,'resize',resize);resize();
 function renderScene(){if(autoOrbit&&!filming&&!dragging&&!cameraMove&&!ceremony.active){azimuth+=.0015;setCamera();}deskField.update(time,ceremony.phase);updateTide();camera.updateMatrixWorld();glassMaterial.uniforms.viewProjection.value.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);if(memoryMesh)memoryMesh.update(camera,displaySize);renderer.setRenderTarget(innerRT);renderer.clear(true,true,true);renderer.render(inside,camera);blur();renderer.setRenderTarget(null);composer.render();}
 function applyQuality(){renderer.shadowMap.enabled=quality!=='battery';if(ao)ao.enabled=quality==='high';$('render-quality').value=quality;$('motion').disabled=quality==='battery';$('motion').textContent=quality==='battery'?'省电模式 · 流光已暂停':paused?'继续流光':'暂停流光';interactionUntil=performance.now()+1200;resize();}
 $('render-quality').onchange=()=>{quality=$('render-quality').value;try{localStorage.setItem('palinode-quality',quality);}catch{}applyQuality();};applyQuality();
-let last=performance.now();function animate(now){scope.frame(animate);if(document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}const idleMs=now-lastInteractionAt,active=dragging||cameraMove||ceremony.active||autoOrbit||now<interactionUntil;let fps;if(computing)fps=10;else if(!mobile)fps=quality==='battery'?(active?24:2):quality==='smooth'?24:60;else if(quality==='battery')fps=active?24:2;else fps=active?30:idleMs>5000?6:12;if(now-last<1000/fps)return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused&&quality!=='battery')time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
+let last=performance.now();function animate(now){scope.frame(animate);if(computeOnly||document.hidden||filming)return;if(inferencePaused){ceremony.update(now);return;}const idleMs=now-lastInteractionAt,active=dragging||cameraMove||ceremony.active||autoOrbit||now<interactionUntil;let fps;if(computing)fps=10;else if(!mobile)fps=quality==='battery'?(active?24:2):quality==='smooth'?24:60;else if(quality==='battery')fps=active?24:2;else fps=active?30:idleMs>5000?6:12;if(now-last<1000/fps)return;const dt=Math.min((now-last)/1000,.04);last=now;updateCamera(now);ceremony.update(now);if(!paused&&quality!=='battery')time+=dt;glassMaterial.uniforms.time.value=time;renderScene();}
 scope.frame(animate);
 const pointers=new Map();let gestureDistance=0;
 function span(){const p=[...pointers.values()];return p.length===2?Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y):0;}
@@ -254,14 +254,19 @@ const memoryBox={
  camera.fov=THREE.MathUtils.lerp(view.fov??29,27,macro);camera.zoom=THREE.MathUtils.lerp(view.zoom,1,macro);camera.updateProjectionMatrix();
  if(t>=8&&!filmRevealed){filmRevealed=true;memoryMesh.visible=true;ceremony.reveal(memoryMesh,filmStart+8000);}ceremony.update(filmStart+t*1000);const focusPoint=new THREE.Vector3(0,.65+(view.lift??0),-.35).lerp(macroTarget,macro),forward=camera.getWorldDirection(new THREE.Vector3());filmDof.uniforms.focus.value=focusPoint.sub(camera.position).dot(forward);filmDof.uniforms.aperture.value=.00065*THREE.MathUtils.smoothstep(t,7,9)*(1-THREE.MathUtils.smoothstep(t,16,20));renderScene();return renderer.domElement;},
  endFilm(){if(!filmSaved)return;deskField.reset();if(filmSaved.bounds)modelBounds.copy(filmSaved.bounds);({azimuth,elevation,zoom,time}=filmSaved);camera.fov=filmSaved.fov;if(filmDof){composer.removePass(filmDof);filmDof.dispose();filmDof=null;}ceremony.cancel();memoryMesh.visible=true;tideAlpha=0;filmSaved=null;filming=false;resize();},
- setGenerationProgress(value){ceremony.setProgress(value);},
- setInferencePaused(value){
-  if(!mobile||inferencePaused===!!value)return;
+  setGenerationProgress(value){ceremony.setProgress(value);},
+  setComputeOnly(value){
+   const next=!!value;if(computeOnly===next)return;computeOnly=next;
+   if(next){inferencePaused=true;ceremony.cancel();deskField.reset();frozenPreview?.remove();frozenPreview=null;renderer.domElement.style.visibility='hidden';renderer.setSize(1,1,false);composer.setSize(1,1);for(const rt of [innerRT,blurA,blurB])rt.setSize(1,1);}
+   else{renderer.domElement.style.visibility='';inferencePaused=false;resize();}
+  },
+  setInferencePaused(value){
+   if(computeOnly||!mobile||inferencePaused===!!value)return;
   if(value){frozenPreview=document.createElement('img');frozenPreview.alt='正在本机生成，场景暂时暂停';frozenPreview.src=renderer.domElement.toDataURL('image/jpeg',.8);Object.assign(frozenPreview.style,{position:'absolute',inset:'0',width:'100%',height:'100%',objectFit:'fill',pointerEvents:'none'});stage.append(frozenPreview);inferencePaused=true;renderer.setSize(1,1,false);composer.setSize(1,1);for(const rt of [innerRT,blurA,blurB])rt.setSize(1,1);}
   else{inferencePaused=false;frozenPreview?.remove();frozenPreview=null;resize();}
  },
  setComputing(value){computing=!!value;resize();},
- async beginCreation(file,name){loadVersion++;moveCamera(HOME);if(memoryMesh)memoryMesh.visible=false;demo.visible=false;try{await ceremony.begin(file,name);}catch(e){this.cancelCreation();throw e;}},
+  async beginCreation(file,name,onReady){loadVersion++;moveCamera(HOME);if(memoryMesh)memoryMesh.visible=false;demo.visible=false;try{await ceremony.begin(file,name,onReady);}catch(e){this.cancelCreation();throw e;}},
  waiting(message){if(memoryMesh)memoryMesh.visible=false;demo.visible=false;ceremony.wait(message);},
   cancelCreation(){loadVersion++;ceremony.cancel();if(memoryMesh)memoryMesh.visible=true;else demo.visible=true;},
   releaseLoadedMemory(){
