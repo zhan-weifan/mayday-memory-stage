@@ -10,7 +10,7 @@ import {constrainedDevice,displayPolicy,executionCapabilities} from '../device-c
 import {createTicketSaver} from './ticket-save.js';
 const $=id=>document.getElementById(id);let selectionEpoch=0;let records=[],current=null,worker=null,busy=false,starting=false,epoch=0,urls=[],operation=null,cancelJob=null,watchdog=null,previousMemoryId=null;
 let mobile=constrainedDevice();
-let workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
+let workerURL=new URL(mobile?'./mobile-worker.js?v=lean-init-20260925-1':'./worker.js?v=decode-1',import.meta.url);
 let mobileModelFile=null,mobileReady=false,modelImport=null,sourceReady=false,deviceReady=false,sourceEpoch=0;const savedIds=new Set(),dirtyIds=new Set();
 let modelBase=DEFAULT_LITE_BASE;
 try{modelBase=normalizeModelBase(localStorage.getItem('palinode-lite-source')||DEFAULT_LITE_BASE);}catch{}
@@ -151,6 +151,12 @@ const dialog=document.createElement('dialog');dialog.className='local-generation
 try{if(localStorage.getItem('still-mobile-generation-mode')==='parallel')generationModeInputs.find(input=>input.value==='parallel').checked=true;}catch{}
 generationModeInputs.forEach(input=>input.addEventListener('change',()=>{try{localStorage.setItem('still-mobile-generation-mode',input.value);}catch{}}));
 function sequentialMobileGeneration(){return dialog.querySelector('input[name="mobile-generation-mode"]:checked')?.value!=='parallel';}
+const initializationSection=document.createElement('section');initializationSection.id='mobile-initialization-mode';initializationSection.hidden=true;
+initializationSection.style.cssText='margin:14px 0;padding:12px 14px;border:1px solid #d8ded9;border-radius:10px';
+initializationSection.innerHTML='<label style="margin:0;min-height:44px;display:flex;align-items:center;gap:8px"><input id="low-memory-initialization" type="checkbox" role="switch" aria-describedby="initialization-help">精简初始化（实验）</label><small id="initialization-help">尝试减少模型初始化时的额外开销。可能计算更慢或不兼容，不保证避免刷新。关闭可恢复标准方式；下次制作生效。</small>';
+$('local-select').before(initializationSection);
+try{$('low-memory-initialization').checked=localStorage.getItem('still-low-memory-initialization')==='1';}catch{}
+$('low-memory-initialization').addEventListener('change',event=>{try{localStorage.setItem('still-low-memory-initialization',event.target.checked?'1':'0');}catch{}});
 if(!mobile){$('model-description').textContent='完整模型约 1.31 GB，将保存在当前浏览器的网站数据中，不会进入 Windows“下载”文件夹。保存成功后，下次使用同一浏览器打开同一网址时会优先直接使用。';$('generation-explanation').textContent='请保持页面打开。生成会占用本机 GPU 和内存；关闭页面会停止制作。模型保存在当前浏览器的网站数据中，浏览器仍可能清理它；重要记忆请导出备份。';}
 const modelInput=document.createElement('input');modelInput.type='file';modelInput.accept='.gemosmodel';modelInput.hidden=true;dialog.append(modelInput);
 const modelSection=document.createElement('section');modelSection.hidden=!mobile;modelSection.style.cssText='margin:20px 0;padding:16px;background:#f2f3ef;border-radius:12px;line-height:1.7';modelSection.innerHTML=`<button id="import-lite-model" type="button" style="width:100%;min-height:44px;border:1px solid #b9bdb1;border-radius:8px;font-size:14px">导入轻量模型包</button><p style="font-size:13px;margin:8px 0">可选：如果你已有 APK 的模型包，可以导入以节省下载。下载源通过检查后才能自动下载；也可直接导入模型包。</p><a style="font-size:13px;color:inherit;text-underline-offset:4px" href="https://github.com/duoduoaiduoduo/gemos-still/releases/download/android-v0.4.0-lite/Gemos-Still-Lite-256.gemosmodel" target="_blank" rel="noopener">下载轻量模型包（${mobileModelSize}） ↗</a><progress id="model-import-progress" max="1" hidden style="width:100%"></progress>`;dialog.querySelector('details').append(modelSection);void updateStorageStatus();
@@ -175,8 +181,9 @@ async function setup(){
  sidebar(false);if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();$('gpu-status').textContent='正在检测运行能力…';
  const capabilities=await executionCapabilities();
  mobile=constrainedDevice()||!capabilities.fp16;
- workerURL=new URL(mobile?'./mobile-worker.js?v=lite-2':'./worker.js?v=decode-1',import.meta.url);
+ workerURL=new URL(mobile?'./mobile-worker.js?v=lean-init-20260925-1':'./worker.js?v=decode-1',import.meta.url);
  modelSection.hidden=!mobile;
+ initializationSection.hidden=!mobile;
  if(mobile){$('model-description').textContent='本机使用 Lite 模型，首次约 '+mobileModelSize+'。下载和校验成功不代表设备一定能完成运行。';$('generation-explanation').textContent='请保持页面打开。执行结果取决于浏览器运行能力和可用资源；重要记忆请导出备份。';}
  if(!capabilities.worker||!capabilities.wasm){if(!dialog.open)dialog.showModal();$('gpu-status').textContent='当前浏览器无法执行本机模型；仍可导入和管理记忆文件。';return;}
  if(!dialog.open)dialog.showModal();deviceReady=false;desktopStorageReady=false;readyControls();
@@ -222,6 +229,7 @@ async function create(file){
  void flushPendingTicketSave().catch(()=>{});
  if(mobile&&(!deviceReady||(!mobileReady&&!sourceReady))){await setup();if(!deviceReady||(!mobileReady&&!sourceReady))return;}
   const sequentialGeneration=mobile&&sequentialMobileGeneration();
+  const lowMemoryInitialization=mobile&&$('low-memory-initialization').checked;
   const previousId=mobile?await prepareMobileForNewCreation():null;if(previousId===false)return;
   dialog.close();notice();sidebar(false);lock(true);retryPhoto=file;progressPanel.querySelector('strong').textContent='正在制作记忆';$('generation-bar').hidden=false;$('generation-retry').hidden=true;$('generation-cancel').textContent='取消';updateProgress({text:'正在启动本机任务…'});if(sequentialGeneration)memoryBox.setComputeOnly(true);memoryBox.setComputing(true);const token=++epoch,op={};operation=op;
  let arrived=false,lastStatus='正在准备本机模型';
@@ -233,7 +241,7 @@ async function create(file){
   if(!sequentialGeneration)arrival=Promise.resolve().then(()=>memoryBox.beginCreation(file,file.name.replace(/\.[^.]+$/,''))).then(()=>{arrived=true;if(token===epoch)memoryBox.waiting(lastStatus);});
  runningWorker=new Worker(workerURL,{type:'module'});worker=runningWorker;
   const result=new Promise((resolve,reject)=>{cancelJob=reject;const arm=(ms,text)=>{clearTimeout(watchdog);watchdog=setTimeout(()=>reject(Error(text)),ms);};arm(30000,'本机任务没有启动响应，请更新浏览器并刷新重试');runningWorker.onmessage=({data})=>{if(token!==epoch)return;if(data.type==='status'){if(!sequentialGeneration&&['initializing','inference','packing'].includes(data.phase))memoryBox.setInferencePaused(true);arm(['initializing','inference'].includes(data.phase)?(mobile?900000:300000):60000,'当前步骤长时间没有响应：'+data.text+'。请重试；若再次失败，请提供手机型号和浏览器。');lastStatus=data.text;updateProgress(data);status(data.text);if(arrived)memoryBox.waiting(data.text);}else if(data.type==='complete')resolve(data.buffer);else if(data.type==='error')reject(Error(data.text));};runningWorker.onerror=()=>reject(Error('后台任务意外中断，原因尚无法确认。已有记忆仍可管理。'));});
- runningWorker.postMessage({prepared,...(mobile?{file:mobileModelFile,modelBase}:{})},[prepared.pixels.buffer]);
+ runningWorker.postMessage({prepared,...(mobile?{file:mobileModelFile,modelBase,lowMemoryInitialization}:{})},[prepared.pixels.buffer]);
   const buffer=await result;runningWorker.terminate();worker=null;if(!sequentialGeneration)memoryBox.setInferencePaused(false);void requestPersistentStorage();if(token!==epoch)return;
  const record={id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,'').slice(0,60)||'一段记忆',created_at:new Date().toISOString(),photo:file,model:buffer,settings:{designVersion:2,depthVolume:1},ticket:readTicket()};
  let saveError=null;try{await save(record);savedIds.add(record.id);void requestPersistentStorage();}catch(e){saveError=e;}

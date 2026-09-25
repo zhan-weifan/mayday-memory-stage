@@ -5,7 +5,7 @@ let pendingEntry=null;
 export function loadApp(){
  if(!appPromise)appPromise=(async()=>{
   initShell();
-  const ui=await import('./browser-inference/ui.js?v=serial-mobile-20260925-2');
+  const ui=await import('./browser-inference/ui.js?v=lean-init-20260925-1');
   await ui.ready;
   for(const path of ['./film.js?v=serial-mobile-20260925-2','./observatory-ui.js?v=serial-mobile-20260925-2'])import(path).catch(error=>showAppError(error,()=>import(path),'附加界面'));
   return ui;
